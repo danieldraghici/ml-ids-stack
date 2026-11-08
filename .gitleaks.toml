@@ -1,0 +1,24 @@
+# gitleaks configuration (R-02). The default rule set stays on; the rules below cover
+# the keys this stack uses that the defaults do not know. tests/test_gitleaks_rules.py
+# checks each rule against a positive and a negative sample.
+title = "ml-ids-stack"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "misp-auth-key"
+description = "MISP automation key (40 alphanumeric characters) next to a MISP key name"
+regex = '''(?i)(?:misp[_-]?(?:auth[_-]?|api[_-]?)?key|authkey)["']?\s*[:=]\s*["']?([a-z0-9]{40})(?:[^a-z0-9]|$)'''
+secretGroup = 1
+keywords = ["misp", "authkey"]
+
+[[rules]]
+id = "shodan-api-key"
+description = "Shodan API key (32 alphanumeric characters) next to a Shodan key name"
+regex = '''(?i)shodan[_-]?(?:api[_-]?)?key["']?\s*[:=]\s*["']?([a-z0-9]{32})(?:[^a-z0-9]|$)'''
+secretGroup = 1
+keywords = ["shodan"]
+
+# The age private key that decrypts every SOPS secret is covered by the default rule
+# age-secret-key, so it is not redefined here.

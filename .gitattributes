@@ -1,0 +1,8 @@
+# LF everywhere, so Makefile recipes, shell scripts and hooks work in WSL and CI.
+* text=auto eol=lf
+
+*.xlsx binary
+*.pcap binary
+*.pcapng binary
+*.png binary
+*.joblib binary
