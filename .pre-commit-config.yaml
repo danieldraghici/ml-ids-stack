@@ -1,0 +1,24 @@
+# Revisions are frozen to commit SHAs (R-04); the tag stays in the comment.
+# Update with: pre-commit autoupdate --freeze, then wait out the cooldown before merging.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # frozen: v8.30.1
+    hooks:
+      - id: gitleaks                      # R-02, reads .gitleaks.toml
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: no-commit-to-branch           # R-01, local guard; the ruleset is the real control
+        args: [--branch, main]
+      - id: detect-private-key            # R-02
+      - id: check-added-large-files       # keeps datasets, pcaps and models out of git (R-07)
+        args: [--maxkb=5000]
+      - id: check-json
+        exclude: ^\.devcontainer/devcontainer\.json$   # JSON with comments, allowed by the dev container spec
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+        exclude: \.xlsx$
+      - id: trailing-whitespace
+        exclude: \.xlsx$

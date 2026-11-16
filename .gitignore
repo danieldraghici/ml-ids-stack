@@ -1,0 +1,34 @@
+# Environment files and decrypted secrets (R-02)
+.env
+.env.*
+!.env.example
+
+# Private keys and lab PKI material (R-02)
+keys.txt
+*.agekey
+*.pem
+*.key
+certs/
+
+# Model files ship as signed release assets, never in git (R-07)
+models/*.joblib
+
+# Datasets and large captures stay in the dissertation repo; small fixtures live in tests/fixtures/
+data/
+*.pcap
+*.pcapng
+!tests/fixtures/pcaps/*.pcap
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Claude Code per-user settings
+.claude/settings.local.json
+
+# OS clutter
+.DS_Store
+Thumbs.db
+~$*.xlsx

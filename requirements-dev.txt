@@ -1,0 +1,5 @@
+# Tools for `make lint`, `make test` and the CI jobs.
+# Pinned exactly so every run installs the same version (R-04). F4 moves this to
+# a hash-locked file installed with --require-hashes.
+pytest==9.2.0
+pre-commit==4.7.0
