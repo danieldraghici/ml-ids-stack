@@ -1,0 +1,11 @@
+What the agent's fine-grained token reaches (R-03), checked 2026-11-16 with read-only calls.
+The token value is not recorded. Token expiry reported by GitHub: 2026-12-16 19:04:15 UTC
+
+gh api repos/danieldraghici/ml-ids-stack
+  HTTP/2.0 200 OK            this repository: readable
+gh api repos/danieldraghici/ml-ids-stack/branches/main/protection
+  HTTP/2.0 403 Forbidden            needs Administration, which the token does not have
+gh api repos/danieldraghici/ml-ids-stack/actions/permissions
+  HTTP/2.0 403 Forbidden            needs Administration, which the token does not have
+gh api repos/<another private repository of the same account>
+  HTTP/2.0 404 Not Found            other repositories: not reachable
