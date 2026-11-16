@@ -4,7 +4,9 @@ Risk and Damage Management, ULBS Cybersecurity master, Module 4A (instructor Dan
 
 ## 1. Definition and scope
 
-The security function this project serves is network intrusion detection for a small lab segment. Its main sensor is the ML-IDS from the student's dissertation: an XGBoost model on NetFlow-style flows with 10 s and 60 s windows, calibrated to a 0.1% false-alarm budget on local benign traffic. This repository does not train the model. It packages it as a sensor, runs it next to Suricata in a self-hosted stack (Logstash with ECS, OpenSearch, MISP, Prometheus, Grafana), enriches its alerts with threat intelligence, and governs every change through pull requests, CI and AI configuration the student authors.
+The security function this project serves is network intrusion detection for a small lab segment. Its main sensor is the ML-IDS from the student's dissertation: an XGBoost model on NetFlow-style flows with 10 s and 60 s windows, calibrated to a 0.1% false-alarm budget on held-out benign traffic. This repository does not train the model. It packages it as a sensor, runs it next to Suricata in a self-hosted stack (Logstash with ECS, OpenSearch, MISP, Prometheus, Grafana), enriches its alerts with threat intelligence, and governs every change through pull requests, CI and AI configuration the student authors.
+
+The model is the student's own work. It is the one with the best measured results among the models compared in the dissertation, and its training data was cleaned in the student's project for the Cybersecurity and Machine Learning course. [RISK-REGISTER.md](../RISK-REGISTER.md) summarises the cleaning rules, their measured effect and the known limits; `docs/model-card.md` records them in full (F3).
 
 In scope: the detector container on pcap replay, the stack as code, detection content with tests, MISP and Shodan enrichment, monitoring, and the AI-assisted engineering workflow.
 Out of scope: model training and research (dissertation repository), live capture on the student's Windows laptop (Docker Desktop cannot capture the host Wi-Fi), production deployment.
@@ -21,7 +23,7 @@ Each row names the asset, the technique (ATT&CK or ATLAS), likelihood and impact
 
 ## 3. GitHub route and governance
 
-Route 2 of the syllabus: a personal private repository with GitHub Pro from GitHub Education. Rulesets `main-checks` (pull request, required checks, no force push or deletion, no bypass) and `main-review` (one approving review) protect `main`. The student authors every commit and pull request, with the agent as co-author when it helped. The agent works with a fine-grained token limited to this repository, and a separate GitHub App reviews pull requests from F7. Details: `docs/setup.md`, `docs/credentials.md`.
+Route 2 of the syllabus: a personal private repository with GitHub Pro from GitHub Education. Rulesets `main-checks` (pull request, required checks, no force push or deletion, no bypass) and `main-review` (one approving review) protect `main`. The student authors every commit and pull request, with the agent as co-author when it helped. The agent works with a fine-grained token limited to this repository, and a separate GitHub App reviews pull requests from F7. It comments and sets a required check but never approves, so every merge stays the student's decision. Details: `docs/setup.md`, `docs/credentials.md`.
 
 ## 4. Architecture and components
 

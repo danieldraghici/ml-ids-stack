@@ -1,8 +1,8 @@
 # The student owns every path. The student authors the pull requests (with the agent
 # as co-author) and cannot approve their own, so the rulesets do not require a
-# code-owner review; the approval main-review asks for comes from the App reviewer
-# (R-01, R-05). AI configuration is listed again on purpose: memory and skill files
-# are owned and reviewed like code.
+# code-owner review; the student merges with the pull-request-only bypass of
+# main-review, after the automated review (R-01, R-05). AI configuration is listed
+# again on purpose: memory and skill files are owned and reviewed like code.
 *                     @danieldraghici
 
 /CLAUDE.md            @danieldraghici

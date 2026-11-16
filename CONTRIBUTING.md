@@ -7,7 +7,7 @@ The same rules bind the student and the AI agent.
 - `main` only accepts pull requests (ruleset `main-checks`, R-01). Direct pushes, force pushes and branch deletion are refused for everyone.
 - Branch names: `<type>/<topic>`, for example `feat/guard-hook`, `ci/session4`, `docs/memory-poisoning`.
 - The required checks `lint` and `test` must pass before merge.
-- Every pull request is authored by the student; when the agent helped, its commits carry `Co-Authored-By: Claude`. The student reviews the branch before the pull request is opened. From F7 the App reviewer (`ml-ids-stack-agent[bot]`) gives the approval ruleset `main-review` asks for; until then the owner merges with the pull-request-only bypass, which never skips the required checks. The agent never merges or approves.
+- Every pull request is authored by the student; when the agent helped, its commits carry `Co-Authored-By: Claude`. The student reviews the branch before the pull request is opened. The owner merges with the pull-request-only bypass of ruleset `main-review`, which never skips the required checks. From F7 the App reviewer (`ml-ids-stack-agent[bot]`) comments on every pull request and sets the required check `ai-review` before that merge; it never approves. The agent never merges or approves.
 
 ## Commits
 

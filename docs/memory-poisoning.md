@@ -2,7 +2,7 @@
 
 ## The risk
 
-Claude Code reads `CLAUDE.md`, `memory/MEMORY.md` (imported by `CLAUDE.md`) and the skills at the start of every session and treats them as trusted context. A line planted in one of them, or in data the agent reads (a MISP event description, an alert, a pcap payload, a web page), can steer a later session: lower the detection threshold, skip a test, read a secret, approve its own pull request. MITRE ATLAS names this AI agent context poisoning, memory variant (AML.T0080.000); the data path is indirect prompt injection (AML.T0051.001).
+Claude Code reads `CLAUDE.md`, `memory/MEMORY.md` (imported by `CLAUDE.md`) and the skills at the start of every session and treats them as trusted context. A line planted in one of them, or in data the agent or the reviewer reads (a MISP event description, an alert, a pcap payload, a web page, a pull-request diff), can steer a later session: lower the detection threshold, skip a test, read a secret, approve its own pull request. MITRE ATLAS names this AI agent context poisoning, memory variant (AML.T0080.000); the data path is indirect prompt injection (AML.T0051.001).
 
 Memory is context, not policy. An instruction in a memory file persuades; it does not compel. So the rules that matter are enforced outside the model.
 
@@ -10,7 +10,7 @@ Memory is context, not policy. An instruction in a memory file persuades; it doe
 
 | Layer | Control | Where |
 |---|---|---|
-| Review | The student owns `CLAUDE.md`, `memory/` and `.claude/` in CODEOWNERS and reviews every branch before its pull request is opened; from F7 the App reviewer must approve as well | `.github/CODEOWNERS`, `CONTRIBUTING.md`, ruleset `main-review` |
+| Review | The student owns `CLAUDE.md`, `memory/` and `.claude/` in CODEOWNERS and reads every memory and skill change as a diff before its pull request is opened and again before merging; the automated reviewer (F7) cannot approve, so a poisoned review cannot merge anything | `.github/CODEOWNERS`, `CONTRIBUTING.md`, ruleset `main-review` |
 | Enforcement | PreToolUse hook blocks secret reads, force push, push to `main`, `--no-verify`, merge and approve, and edits to the threshold, models, regression fixtures and the hook itself | `.claude/hooks/guard.py`, `.claude/settings.json` |
 | Proof | Each blocked action has a test | `tests/test_hook.py` |
 | Last line | Server-side rulesets refuse direct and force pushes and failing checks even if the hook is bypassed | `.github/rulesets/main-checks.json` |
