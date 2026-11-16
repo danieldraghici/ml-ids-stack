@@ -95,6 +95,9 @@ FORCE_FLAGS = {"-f", "--force", "--force-with-lease", "--force-if-includes",
                "--mirror", "--delete", "-d", "--prune"}
 GH_SENSITIVE_API = re.compile(
     r"rulesets|/protection|/collaborators|/actions/permissions|/hooks|/keys|/environments")
+# Merging or reviewing a pull request through the REST API instead of gh pr merge / review.
+GH_MERGE_API = re.compile(r"/pulls/[^/\s]+/(?:merge|reviews)\b|(?:^|/)merges\b")
+GRAPHQL_MUTATION = re.compile(r"\bmutation\b", re.IGNORECASE)
 GH_API_OPTS_WITH_VALUE = {"-H", "--header", "-q", "--jq", "-t", "--template",
                           "--hostname", "--cache", "-p", "--preview"}
 REDIRECT = re.compile(r">>?\s*([^\s;&|<>]+)")
@@ -156,6 +159,8 @@ def check_git(tokens: list[str], root: str, cwd: str) -> None:
     joined = " ".join(tokens).lower()
     if "core.hookspath" in joined:
         block("R-02, R-05", "changing core.hooksPath would switch off the pre-commit checks")
+    if sub == "credential" or sub.startswith("credential-"):
+        block("R-03", f"git {sub} can print the token git pushes with")
     if sub == "commit":
         for a in args:
             if a == "--no-verify" or (re.fullmatch(r"-[a-zA-Z]+", a) and "n" in a[1:]):
@@ -190,6 +195,8 @@ def check_gh(tokens: list[str]) -> None:
     sub = tokens[1:3]
     if sub[:2] == ["auth", "token"] or (sub[:2] == ["auth", "status"] and {"-t", "--show-token"} & set(tokens)):
         block("R-02, R-03", "printing the GitHub token would expose it in the transcript")
+    if sub[:2] == ["auth", "git-credential"]:
+        block("R-03", "gh auth git-credential prints the token git pushes with")
     if sub[:2] == ["auth", "login"] or sub[:2] == ["auth", "refresh"]:
         block("R-03", "the agent keeps the scoped token it started with; it never logs in with another")
     if sub[:2] == ["pr", "merge"]:
@@ -201,7 +208,7 @@ def check_gh(tokens: list[str]) -> None:
     if sub[:1] in (["secret"], ["variable"]) and len(sub) > 1 and sub[1] in {"set", "delete", "remove"}:
         block("R-02, R-03", f"gh {sub[0]} {sub[1]} changes repository secrets or variables")
     if sub[:1] == ["api"]:
-        endpoint, method, has_body = "", "", False
+        endpoint, method, has_body, from_file = "", "", False, False
         i = 2
         while i < len(tokens):
             t = tokens[i]
@@ -211,10 +218,17 @@ def check_gh(tokens: list[str]) -> None:
                 continue
             if t.startswith("--method="):
                 method = t.split("=", 1)[1].upper()
+            elif re.fullmatch(r"-X[A-Za-z]+", t):
+                method = t[2:].upper()
             elif t in ("-f", "-F", "--field", "--raw-field", "--input"):
                 has_body = True
+                value = tokens[i + 1] if i + 1 < len(tokens) else ""
+                from_file = from_file or t == "--input" or "=@" in value
                 i += 2
                 continue
+            elif t.startswith(("--field=", "--raw-field=", "--input=")):
+                has_body = True
+                from_file = from_file or t.startswith("--input=") or "=@" in t
             elif t in GH_API_OPTS_WITH_VALUE:
                 i += 2
                 continue
@@ -222,8 +236,17 @@ def check_gh(tokens: list[str]) -> None:
                 endpoint = t
             i += 1
         method = method or ("POST" if has_body else "GET")
+        if endpoint.strip("/") == "graphql":
+            # A mutation can merge or approve; a query read from a file cannot be inspected.
+            if from_file or GRAPHQL_MUTATION.search(" ".join(tokens)):
+                block("R-01, R-05", "gh api graphql with a mutation, or with a query the hook cannot read, "
+                                    "can merge or approve a pull request")
+            return
         if GH_SENSITIVE_API.search(endpoint) and method != "GET":
             block("R-01, R-03", f"gh api {method} {endpoint} changes protection or access")
+        if GH_MERGE_API.search(endpoint) and method != "GET":
+            block("R-01, R-05", f"gh api {method} {endpoint} merges or reviews a pull request; "
+                                "the student merges after review")
 
 
 def is_pytest(tokens: list[str]) -> bool:
