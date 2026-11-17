@@ -17,11 +17,34 @@ ENV_EXAMPLE = (ROOT / ".env.example").read_text(encoding="utf-8")
 VAR = re.compile(r"\$\{([A-Z0-9_]+)[^}]*\}")
 
 
+DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
+
+
 @pytest.mark.parametrize("name", sorted(SERVICES))
 def test_image_pinned_by_digest(name):
-    image = SERVICES[name]["image"]
-    assert re.search(r"@sha256:[0-9a-f]{64}$", image), f"{name}: {image} is not pinned by digest"
+    service = SERVICES[name]
+    if "build" in service:  # built locally: its base image must be pinned instead
+        context = service["build"] if isinstance(service["build"], str) else service["build"]["context"]
+        froms = [l.split()[1] for l in (ROOT / context / "Dockerfile").read_text(encoding="utf-8").splitlines()
+                 if l.upper().startswith("FROM ")]
+        assert froms and all(DIGEST.search(f) for f in froms), f"{name}: Dockerfile FROM not pinned by digest"
+        return
+    image = service["image"]
+    assert DIGEST.search(image), f"{name}: {image} is not pinned by digest"
     assert not re.search(r":latest(@|$)", image), f"{name}: floating tag"
+
+
+def test_only_the_front_door_reaches_dashboards():
+    assert "ports" not in SERVICES["opensearch-dashboards"], "Dashboards must not publish a port"
+    conf = (ROOT / "nginx" / "frontdoor.conf").read_text(encoding="utf-8")
+    assert "listen 443 ssl" in conf and "proxy_pass http://opensearch-dashboards:5601" in conf
+    assert re.search(r"ssl_protocols\s+TLSv1\.2 TLSv1\.3;", conf), "only TLS 1.2 and 1.3"
+
+
+def test_certificates_are_mounted_read_only_and_ignored():
+    mounts = SERVICES["frontdoor"]["volumes"]
+    assert all(m.endswith(":ro") for m in mounts)
+    assert "certs/" in (ROOT / ".gitignore").read_text(encoding="utf-8").split()
 
 
 @pytest.mark.parametrize("name", sorted(SERVICES))
