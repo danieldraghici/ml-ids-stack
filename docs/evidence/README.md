@@ -20,6 +20,8 @@ Screenshots, logs and command output that prove a control works. Each file name 
 | `R-03-agent-token-check.txt` | R-03 | agent | what the agent's token reaches: this repository yes, rulesets and other private repositories no |
 | `R-03-app-permissions.png` | R-03 | student | F7: the reviewer App's permissions page |
 | `R-03-app-installation.png` | R-03 | student | F7: the reviewer App installed on this repository only |
+| `R-06-replay-baseline.txt` | R-06 | agent | flows, alerts and predicted classes per pcap fixture, the baseline the F4 gate compares against |
+| `R-07-tampered-model-refused.txt` | R-07 | agent | a model changed by one byte, refused by `detector/run.py` before it is unpickled (exit code 3) |
 | `R-05-memory-correction-persists.png` | R-05 | student | a correction saved to `memory/` and followed in a new session |
 | `R-05-poisoned-memory-refused-by-model.png` | R-05 | student | the model declining a line planted in a memory file (the prose layer) |
 | `R-05-poisoned-memory-blocked.png` | R-05 | student | the write a planted memory line asked for, refused by the deny rule in `.claude/settings.json` (the technical layer) |

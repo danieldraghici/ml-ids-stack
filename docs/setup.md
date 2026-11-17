@@ -78,7 +78,14 @@ Then:
 
 `make down && make up` reaches the same green cluster every time (`docs/evidence/R-02-stack-up-down-twice.txt`). Dashboards publishes no port of its own: it answers only through the front door, `https://localhost:8443`, so the admin password never crosses plain HTTP (`docs/evidence/R-02-frontdoor-tls-chain.txt`). Nothing listens beyond localhost. To see the padlock instead of a warning, add `certs/root_ca.crt` to your browser's or your user's trusted roots; remove it at the end of the course.
 
-## 5. Ahead of F6
+## 5. Replay a capture through the detector (F3)
+
+- `make model`: copies the model bundle from the dissertation workspace (`MODEL_SRC`) into `models/` (git-ignored) and checks its SHA-256 against `detector/thresholds.json`.
+- `make replay PCAP=portscan.pcap`: builds the detector image and replays one fixture from `tests/fixtures/pcaps/` in a read-only container without network or capabilities. Alerts, episodes and the run status land in `out/`.
+
+The detector refuses a model whose SHA-256 differs from `detector/thresholds.json` before loading it (`docs/evidence/R-07-tampered-model-refused.txt`). Fixtures and their baseline: `tests/fixtures/pcaps/README.md`.
+
+## 6. Ahead of F6
 
 - Create a free Shodan account; the API key goes into `secrets/stack.enc.yaml` in F3.
 - Pull the misp-docker images in advance; they are several GB.

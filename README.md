@@ -32,9 +32,11 @@ memory/                    one correction per file, indexed by MEMORY.md
 .github/                   CODEOWNERS, rulesets to import, CI, pull request template
 docs/                      project document, setup, credentials, memory poisoning, evidence/
 compose.yaml               OpenSearch, Dashboards and the nginx TLS front door, pinned by digest
-Makefile                   secrets, pki, up, down, health, tls, lint, test
+Makefile                   secrets, pki, up, down, health, tls, model, replay, lint, test
 secrets/                   SOPS ciphertext only (age)
 nginx/                     front-door image and site config
+detector/                  the ML-IDS sensor: 16 files from the dissertation, model gate, image
+tests/fixtures/pcaps/      four lab pcaps under 5 MB, with sources and baseline
 scripts/pki.sh             lab root and intermediate CA, front-door certificate
 tests/                     hook, gitleaks rules, register, compose
 ```
