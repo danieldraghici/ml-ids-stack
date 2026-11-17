@@ -48,7 +48,44 @@ The register comes first, as the course requires. Only the first commit goes str
 3. Agent session, with the scoped token: branch `chore/governance` (F1) and branch `feat/ai-config` (F2), the student as author and the agent as co-author.
 4. Student: review each branch before its pull request is opened; then the pull request, the required checks, and the merge.
 
-## 4. Ahead of F6
+## 4. Run the stack (F3)
+
+Once per machine: create your age key (`age-keygen -o ~/.config/sops/age/keys.txt`, mode 600, `SOPS_AGE_KEY_FILE` pointing at it). Its public key is the recipient in `.sops.yaml`.
+
+Once per repository clone:
+
+```bash
+cp .env.example .env
+```
+
+Encrypt the OpenSearch admin password (at least 8 characters with upper and lower case, a digit and a symbol; avoid `$`, `#`, quotes, spaces and colons). It is read without echo and never written in plaintext:
+
+```bash
+printf 'Admin password: ' && read -rs OS_PW && echo && printf 'OPENSEARCH_INITIAL_ADMIN_PASSWORD: %s\n' "$OS_PW" \
+  | sops --encrypt --filename-override secrets/stack.enc.yaml --input-type yaml --output-type yaml /dev/stdin > secrets/stack.enc.yaml && unset OS_PW
+```
+
+Issue the front-door certificate (once, then every 30 days):
+
+- `make pki`: on the first run creates the lab root CA and an intermediate CA with the step CLI, their keys encrypted with passwords you choose (asked twice) and kept outside the repository in `~/.config/ml-ids-stack/pki`; every run issues the `frontdoor.lab` certificate (also valid for `localhost` and `127.0.0.1`) into `certs/` (git-ignored) and verifies the chain.
+
+Then:
+
+- `make up`: decrypts into `.env.secrets` (mode 600), builds the nginx front door, starts OpenSearch, Dashboards and the front door, waits until all are healthy and prints the cluster health;
+- `make health`: the cluster health again;
+- `make tls`: the front door's certificate chain, verified against the lab root only;
+- `make down`: removes the containers, the network and the data volume, and deletes `.env.secrets`.
+
+`make down && make up` reaches the same green cluster every time (`docs/evidence/R-02-stack-up-down-twice.txt`). Dashboards publishes no port of its own: it answers only through the front door, `https://localhost:8443`, so the admin password never crosses plain HTTP (`docs/evidence/R-02-frontdoor-tls-chain.txt`). Nothing listens beyond localhost. To see the padlock instead of a warning, add `certs/root_ca.crt` to your browser's or your user's trusted roots; remove it at the end of the course.
+
+## 5. Replay a capture through the detector (F3)
+
+- `make model`: copies the model bundle from the dissertation workspace (`MODEL_SRC`) into `models/` (git-ignored) and checks its SHA-256 against `detector/thresholds.json`.
+- `make replay PCAP=portscan.pcap`: builds the detector image and replays one fixture from `tests/fixtures/pcaps/` in a read-only container without network or capabilities. Alerts, episodes and the run status land in `out/`.
+
+The detector refuses a model whose SHA-256 differs from `detector/thresholds.json` before loading it (`docs/evidence/R-07-tampered-model-refused.txt`). Fixtures and their baseline: `tests/fixtures/pcaps/README.md`.
+
+## 6. Ahead of F6
 
 - Create a free Shodan account; the API key goes into `secrets/stack.enc.yaml` in F3.
 - Pull the misp-docker images in advance; they are several GB.

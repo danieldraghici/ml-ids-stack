@@ -1,0 +1,18 @@
+# R-02 evidence: the TLS front door's certificate chain, checked against the lab root only
+# make tls = openssl s_client -connect 127.0.0.1:$HTTPS_PORT -servername localhost -CAfile certs/root_ca.crt
+# 2026-11-17T18:05:30Z
+ 0 s:CN=frontdoor.lab
+   i:CN=ML-IDS Stack Lab Intermediate CA
+ 1 s:CN=ML-IDS Stack Lab Intermediate CA
+   i:CN=ML-IDS Stack Lab Root CA
+Protocol: TLSv1.3
+Verify return code: 0 (ok)
+
+## leaf certificate (step certificate inspect --short)
+X.509v3 TLS Certificate (ECDSA P-256) [Serial: 9332...8414]
+  Subject:     frontdoor.lab
+               localhost
+               127.0.0.1
+  Issuer:      ML-IDS Stack Lab Intermediate CA
+  Valid from:  2026-11-17T18:03:48Z
+          to:  2026-12-17T18:03:48Z

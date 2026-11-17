@@ -1,0 +1,9 @@
+# R-06 evidence: detector replay baseline on the four fixtures, 2026-11-17T18:26:20Z
+# make replay PCAP=<fixture>: read-only container, no network, no capabilities, model verified by SHA-256,
+# threshold 0.005151937318725348 from detector/thresholds.json
+
+fixture	flows	alert_records	predicted_classes
+portscan.pcap	4100	4100	{"DoS": 1002, "PortScan": 3098}
+slowloris.pcap	1076	1067	{"Benign": 9, "DDoS": 310, "DoS": 693, "PortScan": 37, "WebAttack": 27}
+hulk1_head.pcap	601	601	{"DDoS": 1, "DoS": 228, "DoS-Slow": 371, "PortScan": 1}
+benign_head.pcap	43	1	{"Benign": 41, "PortScan": 2}

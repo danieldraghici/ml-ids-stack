@@ -1,0 +1,6 @@
+# R-07 evidence: a model file changed by one byte is refused before it is unpickled, 2026-11-17T18:26:20Z
+# cp models/nfv3_window_xgb_latest.joblib $T/ && printf 'x' >> $T/nfv3_window_xgb_latest.joblib
+# docker run ... -v $T:/models:ro ml-ids-stack/detector:local /pcaps/portscan.pcap
+
+detector: REFUSED /models/nfv3_window_xgb_latest.joblib: SHA-256 7a2b4641c3036380a10a0860b0e4709025b0f0d41ce1dde26163efe5bf9d03af does not match thresholds.json (55c587d2a2a7f10049c1ea74f5e97bd7ea44634f4d83aecbff13a1bc8d1f8cbd); the file is not loaded
+exit code: 3

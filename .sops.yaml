@@ -1,0 +1,5 @@
+# SOPS encrypts every file under secrets/ for the student's age key (R-02).
+# Only the public key is here; the private key stays in ~/.config/sops/age/keys.txt in WSL.
+creation_rules:
+  - path_regex: secrets/.*\.enc\.yaml$
+    age: age1q00ersdqvrryg3gyfpx9unev26qkkux6z4ycx0ur0d79zhqpde8qwn8jnu

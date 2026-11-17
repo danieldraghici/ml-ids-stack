@@ -3,3 +3,4 @@
 # a hash-locked file installed with --require-hashes.
 pytest==9.2.0
 pre-commit==4.7.0
+pyyaml==6.0.3

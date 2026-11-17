@@ -1,0 +1,46 @@
+# R-02 / R-04 evidence: the stack deployed from configuration alone, twice
+# 2026-11-17T18:04:52Z, WSL2 Ubuntu, Docker 29.8.2
+# Each round: make up (decrypts secrets/stack.enc.yaml into .env.secrets, builds the front door,
+# compose up --wait, cluster health), then make down (compose down -v, .env.secrets deleted).
+
+## Round 1: make up
+  "status" : "green",
+ Container ml-ids-stack-frontdoor-1 Healthy
+ Container ml-ids-stack-frontdoor-1 Started
+ Container ml-ids-stack-opensearch-1 Healthy
+ Container ml-ids-stack-opensearch-1 Started
+ Container ml-ids-stack-opensearch-dashboards-1 Healthy
+ Container ml-ids-stack-opensearch-dashboards-1 Started
+  .env.secrets mode: 600
+  published ports: 127.0.0.1:8443->443 127.0.0.1:9200->9200
+  dashboards port 5601 reachable directly: no
+  up took 17 s
+## Round 1: make down
+ Container ml-ids-stack-frontdoor-1 Removed
+ Container ml-ids-stack-opensearch-1 Removed
+ Container ml-ids-stack-opensearch-dashboards-1 Removed
+ Network ml-ids-stack_default Removed
+ Volume ml-ids-stack_opensearch-data Removed
+  .env.secrets after down: deleted
+  volumes left: 0
+
+## Round 2: make up
+  "status" : "green",
+ Container ml-ids-stack-frontdoor-1 Healthy
+ Container ml-ids-stack-frontdoor-1 Started
+ Container ml-ids-stack-opensearch-1 Healthy
+ Container ml-ids-stack-opensearch-1 Started
+ Container ml-ids-stack-opensearch-dashboards-1 Healthy
+ Container ml-ids-stack-opensearch-dashboards-1 Started
+  .env.secrets mode: 600
+  published ports: 127.0.0.1:8443->443 127.0.0.1:9200->9200
+  dashboards port 5601 reachable directly: no
+  up took 17 s
+## Round 2: make down
+ Container ml-ids-stack-frontdoor-1 Removed
+ Container ml-ids-stack-opensearch-1 Removed
+ Container ml-ids-stack-opensearch-dashboards-1 Removed
+ Network ml-ids-stack_default Removed
+ Volume ml-ids-stack_opensearch-data Removed
+  .env.secrets after down: deleted
+  volumes left: 0

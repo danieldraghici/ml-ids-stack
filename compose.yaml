@@ -1,0 +1,59 @@
+# Single-node OpenSearch, OpenSearch Dashboards and an nginx TLS front door (F3).
+# - Images pinned by tag and digest; 2.19.6 was released 2026-10-15, past the 14-day cooldown (R-04).
+# - Host ports come from .env and bind to 127.0.0.1 only, so nothing listens on the laptop's network.
+# - The admin password comes from .env.secrets, which `make secrets` decrypts from
+#   secrets/stack.enc.yaml and `make down` deletes (R-02).
+name: ml-ids-stack
+
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.19.6@sha256:be67c71b8d0e5edf1e9825145501c0136c3b8221206e1ce782ce17b04d0280b5
+    environment:
+      discovery.type: single-node
+      OPENSEARCH_JAVA_OPTS: -Xms1g -Xmx1g
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD:?run make secrets}
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - "127.0.0.1:${OPENSEARCH_PORT:?set it in .env}:9200"
+    healthcheck:
+      # credentials on stdin (-K -), so the password stays off the process list
+      test: ["CMD-SHELL", "printf 'user = \"admin:%s\"\\n' \"$${OPENSEARCH_INITIAL_ADMIN_PASSWORD}\" | curl -sk -K - https://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.19.6@sha256:c365df98e5bbbc4bd05234be77294716ff0b84c36384ca2afdeb606741d9ae47
+    environment:
+      OPENSEARCH_HOSTS: '["https://opensearch:9200"]'
+    # No published port: Dashboards is reached only through the TLS front door below.
+    healthcheck:
+      # any HTTP answer (the login's 401 included) means the server is up
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:5601/api/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  frontdoor:
+    build: nginx
+    image: ml-ids-stack/frontdoor:local
+    ports:
+      - "127.0.0.1:${HTTPS_PORT:?set it in .env}:443"
+    volumes:
+      - ./certs/frontdoor.crt:/etc/nginx/certs/frontdoor.crt:ro
+      - ./certs/frontdoor.key:/etc/nginx/certs/frontdoor.key:ro
+    depends_on:
+      opensearch-dashboards:
+        condition: service_healthy
+
+volumes:
+  opensearch-data:
