@@ -27,7 +27,27 @@ Route 2 of the syllabus: a personal private repository with GitHub Pro from GitH
 
 ## 4. Architecture and components
 
-*To write in F3*: diagram and description of the detector container, Suricata, Logstash pipelines, OpenSearch, MISP, Prometheus and Grafana, with the data flow from pcap to alert to enriched alert.
+State after F3 (later phases add Logstash, Suricata, MISP and monitoring to the same picture):
+
+```
+                       make replay PCAP=...                       make up / make down
+  tests/fixtures/pcaps ───────────────────▶ detector container      compose.yaml (127.0.0.1 only)
+  (lab pcaps < 5 MB)                        read-only, no network     ┌──────────────────────────────┐
+                                            no capabilities           │ opensearch 2.19.6  :9200     │
+  models/ (git-ignored) ──── SHA-256 ─────▶ run.py: verify model,     │ opensearch-dashboards        │
+  detector/thresholds.json  checked          then live.py --replay    │   (no published port)        │
+                                                 │                    │ frontdoor nginx 1.30.5 :8443 │
+                                                 ▼                    │   TLS 1.2/1.3, lab CA cert   │
+                                     out/<name>.alerts.jsonl          └──────────────────────────────┘
+                                     out/<name>.episodes.json           ▲ admin password: SOPS/age
+                                     (F5: into Logstash, ECS,           │ ciphertext in secrets/,
+                                      OpenSearch)                       │ .env.secrets only while up
+```
+
+- **Stack** (`compose.yaml`): single-node OpenSearch and Dashboards, pinned by digest, host ports only on 127.0.0.1. Dashboards is reachable only through the nginx front door, which serves a 30-day certificate from an offline lab root and intermediate CA (`scripts/pki.sh`). `make up` and `make down` reach the same state every time (`docs/evidence/R-02-stack-up-down-twice.txt`).
+- **Secrets**: the OpenSearch admin password lives in git only as SOPS ciphertext for the student's age key; `make secrets` writes an owner-only `.env.secrets` that `make down` deletes.
+- **Detector** (`detector/`): the 16 inference files from the dissertation, unchanged, with their SHA-256 in `detector/SOURCES.tsv`; the model's SHA-256 is checked before it is unpickled; model, profile and threshold come only from `detector/thresholds.json`. Model details: `docs/model-card.md`.
+- **Fixtures** (`tests/fixtures/pcaps/`): four lab captures under 5 MB (port scan, slowloris, Hulk, benign) with their sources, cut commands and the detector baseline.
 
 ## 5. AI workflow
 
