@@ -32,3 +32,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 ~$*.xlsx
+
+# Detector output (alerts, episodes, status) from make replay
+out/

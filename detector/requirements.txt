@@ -1,0 +1,19 @@
+# Detector runtime, every package pinned exactly (R-04). The scikit-learn, xgboost, numpy and
+# pandas versions match the ones the model was trained and pickled with (R-07).
+# xgboost-cpu is the CPU-only build of xgboost 3.4.0: same module, no 200 MB GPU library.
+# F4 moves this to hashes, installed with --require-hashes.
+cffi==2.1.1
+dpkt==1.9.8
+joblib==1.5.3
+narwhals==2.29.0
+nfstream==6.6.0
+numpy==2.5.1
+pandas==3.0.5
+psutil==7.2.2
+pycparser==3.12
+python-dateutil==4.0.0
+scikit-learn==1.9.0
+scipy==1.18.0
+threadpoolctl==3.6.0
+tzdata==2026.6
+xgboost-cpu==3.4.0

@@ -1,6 +1,10 @@
 # Run from WSL2 Ubuntu (see docs/setup.md). Ports come from .env, the admin password from
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
-.PHONY: lint test secrets pki up down health tls
+.PHONY: lint test secrets pki up down health tls model detector replay
+
+# Where the dissertation's model bundle lives on this machine (never committed, R-07).
+MODEL_SRC ?= /mnt/d/ML_IDS_Disertation/ML_IDS_Disertation/models/nfv3_window_xgb_latest.joblib
+PCAP ?=
 
 COMPOSE := docker compose --env-file .env --env-file .env.secrets
 
@@ -41,3 +45,22 @@ tls:
 	@set -a; . ./.env; set +a; \
 	openssl s_client -connect "127.0.0.1:$$HTTPS_PORT" -servername localhost -CAfile certs/root_ca.crt -showcerts </dev/null 2>/dev/null \
 	  | grep -E "^ *[0-9] s:|^ *i:|Verify return code|Protocol *:"
+
+# Copy the model into models/ (git-ignored) and check its SHA-256 against detector/thresholds.json.
+model:
+	@mkdir -p models
+	cp "$(MODEL_SRC)" models/
+	@python3 -c 'import hashlib,json,sys; c=json.load(open("detector/thresholds.json")); d=hashlib.sha256(open("models/"+c["model"],"rb").read()).hexdigest(); print("model SHA-256", "matches" if d==c["model_sha256"] else "DOES NOT MATCH", "thresholds.json"); sys.exit(d!=c["model_sha256"])'
+
+detector:
+	docker build -q -t ml-ids-stack/detector:local detector
+
+# Replay one pcap from tests/fixtures/pcaps: read-only container, no network, no capabilities,
+# unprivileged user, model mounted read-only. Alerts land in out/ (git-ignored).
+replay: detector
+	@test -n "$(PCAP)" || { echo "usage: make replay PCAP=portscan.pcap"; exit 1; }
+	@mkdir -p out
+	docker run --rm --read-only --tmpfs /tmp --network none --cap-drop ALL \
+	  --security-opt no-new-privileges --user "$$(id -u):$$(id -g)" \
+	  -v "$$PWD/models:/models:ro" -v "$$PWD/tests/fixtures/pcaps:/pcaps:ro" -v "$$PWD/out:/out" \
+	  ml-ids-stack/detector:local "/pcaps/$(PCAP)"
