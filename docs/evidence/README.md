@@ -6,9 +6,10 @@ Screenshots, logs and command output that prove a control works. Each file name 
 |---|---|---|---|
 | `R-01-rulesets-active.json` | R-01 | agent | the rules GitHub applies to `main`, read from the API |
 | `R-01-rulesets-page.png` | R-01 | student | Settings, Rules, Rulesets: both rulesets active |
-| `R-01-agent-pr-blocked-until-checks.png` | R-01 | student | a pull request from the agent session, blocked until the required checks pass and a review approves |
+| `R-01-agent-pr-blocked-until-checks.png` | R-01 | student | a pull request from the agent session, blocked while the required checks run and the approval is missing |
 | `R-01-push-refused.png` | R-01 | student | direct push and force push to `main` refused by the server |
 | `R-01-bypass-waits-for-checks.png` | R-01 | student | the pull-request-only bypass stays unavailable while checks run |
+| `R-01-agent-token-merge-test.txt` | R-01 | agent | the agent's token merged a pull request that had no approval, through the student's bypass: why the guard hook holds the merge step |
 | `R-02-secret-scanning-unavailable.txt` | R-02 | agent | GitHub's answer when secret scanning was switched on: not available here |
 | `R-02-fake-key-rejected.png` | R-02 | student | gitleaks refusing a commit with a fake MISP key |
 | `R-03-R-04-actions-permissions.json` | R-03, R-04 | agent | workflow token read-only, Actions cannot approve, SHA pinning required |

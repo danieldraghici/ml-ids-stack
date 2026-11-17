@@ -1,0 +1,30 @@
+// Dev container the AI agent runs in (R-03). The only credential inside is the
+// student's fine-grained token for this repository (no administration), mounted
+// read-only. The student's own gh, git and SSH credentials are never mounted.
+// Read docs/credentials.md first. Image and features are pinned by digest (R-04).
+{
+  "name": "ml-ids-stack agent",
+  // mcr.microsoft.com/devcontainers/python:3.12-bookworm
+  "image": "mcr.microsoft.com/devcontainers/python@sha256:5ff1ba19e3b9273b24ec101055172d0e75046bc9ec40780643c530d2df2c75e5",
+  "features": {
+    // ghcr.io/devcontainers/features/node:1 (needed for Claude Code)
+    "ghcr.io/devcontainers/features/node@sha256:8c0de46939b61958041700ee89e3493f3b2e4131a06dc46b4d9423427d06e5f6": {},
+    // ghcr.io/devcontainers/features/github-cli:1
+    "ghcr.io/devcontainers/features/github-cli@sha256:bd7ab48a832228f633239277552c30b353867fef2e5b037e064b4e64f0b843f2": {}
+  },
+  // Commits carry the student as author; Claude Code adds itself as co-author.
+  "containerEnv": {
+    "GIT_AUTHOR_NAME": "${localEnv:STUDENT_GIT_NAME}",
+    "GIT_AUTHOR_EMAIL": "${localEnv:STUDENT_GIT_EMAIL}",
+    "GIT_COMMITTER_NAME": "${localEnv:STUDENT_GIT_NAME}",
+    "GIT_COMMITTER_EMAIL": "${localEnv:STUDENT_GIT_EMAIL}"
+  },
+  // Only the scoped token, read-only. No ~/.config/gh, no ~/.ssh, no ~/.git-credentials, no Docker socket.
+  "mounts": [
+    "source=${localEnv:HOME}/.config/ml-ids-stack/agent-token,target=/run/secrets/agent-gh-token,type=bind,readonly"
+  ],
+  // Claude Code pinned to a release at least 14 days old (R-04).
+  "postCreateCommand": "pip install -r requirements-dev.txt && pre-commit install && npm install -g @anthropic-ai/claude-code@2.1.310",
+  // gh logs in with the scoped token at every start; git pushes through gh.
+  "postStartCommand": "gh auth login --with-token < /run/secrets/agent-gh-token && gh auth setup-git"
+}

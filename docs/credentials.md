@@ -5,13 +5,14 @@ Two credentials, two roles:
 | Role | Identity | Credential | Reach |
 |---|---|---|---|
 | Agent session (Claude Code in the dev container): commits, pushes branches, opens pull requests | the student, with the agent as co-author in each commit (`Co-Authored-By: Claude`) | fine-grained personal access token created by the student | this repository only; contents, pull requests and workflows; no administration; 30 days |
-| Automated pull-request review (CI, from F7) | the GitHub App `ml-ids-stack-agent[bot]` | the App's private key, stored as an Actions secret; each run mints a one-hour installation token | this repository only; no administration |
+| Automated pull-request review (CI, from F7) | the GitHub App `ml-ids-stack-agent[bot]` | the App's private key, stored as an environment secret limited to `main`; each run mints a one-hour installation token | this repository only; no administration |
 
 ## Why this split
 
 - The student is the author of the work and must be able to defend every part of it, so commits and pull requests carry the student's name; the agent's share shows in the co-author trailer.
 - The student's own `gh` login reaches every repository of the account and is admin on this one. The agent never holds it. Its token is limited to this repository and has no Administration permission, so it cannot change rulesets, settings or collaborators (R-03).
-- An author cannot approve their own pull request. The approval that ruleset `main-review` asks for comes from the App reviewer, a separate identity, after the required checks pass (R-01). Until the reviewer workflow lands (F7), the student merges with the pull-request-only bypass, which never skips the checks of `main-checks`.
+- An author cannot approve their own pull request, so nobody can give the approval that ruleset `main-review` asks for. The student merges with the pull-request-only bypass, which never skips the checks of `main-checks`; that merge is the human approval. From F7 the App reviewer comments on every pull request and sets the required check `ai-review`. It never approves, so an automated review cannot merge anything (R-01, R-05).
+- The agent's token is issued by the student's account, so GitHub cannot tell the agent from the student. The guard hook refuses every merge and approve path on the agent's side, and `docs/evidence/R-01-agent-merge-refused.txt` records what GitHub answers when the agent's token tries to merge an unapproved pull request (R-01).
 - A GitHub connector or MCP server signed in with the student's account would carry the full login, so it does not replace the scoped token.
 
 ## 1. The agent's fine-grained token (student, every 30 days)
@@ -57,7 +58,7 @@ Check from inside the container: `gh auth status` shows a fine-grained token, `g
 
 ## 3. The App reviewer (F7)
 
-The App `ml-ids-stack-agent` is installed on this repository only. In F7 its permissions shrink to what a reviewer needs (pull requests: write; contents, checks, statuses: read), its private key becomes an Actions secret, and a review workflow mints a one-hour token per run to post the review.
+The App `ml-ids-stack-agent` is installed on this repository only. In F7 its permissions shrink to what a reviewer needs (pull requests and checks: write; contents: read) and its private key becomes an environment secret limited to `main`. The review workflow runs on `pull_request_target` from `main`'s own file and never checks out or runs pull-request code, so a branch cannot rewrite it to read the key (R-04). Each run mints a one-hour token to post its comments and set the check `ai-review`.
 
 ## Rotation
 
