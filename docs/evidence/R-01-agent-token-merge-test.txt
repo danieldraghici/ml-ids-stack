@@ -1,0 +1,17 @@
+Can the agent's fine-grained token merge a pull request that has no approval? (R-01)
+Tested once, on purpose, on pull request 1, 2026-11-16, outside the agent's dev container
+(inside it the guard hook refuses this command).
+
+State before: OPEN, required checks lint and test passed, review decision REVIEW_REQUIRED,
+merging blocked for anyone without the bypass of ruleset main-review.
+
+gh api -X PUT repos/danieldraghici/ml-ids-stack/pulls/1/merge -f merge_method=merge -f sha=3688e44...
+  HTTP/2.0 200 OK
+  {"sha":"36083e4c9ab79e3948f4b1ac3e2151121911c109","merged":true,"message":"Pull Request successfully merged"}
+
+State after: MERGED, merged by danieldraghici.
+
+Reading: the token is issued by the student's account, so GitHub applies the student's
+pull-request-only bypass to it. The rulesets stop direct pushes, force pushes and failing checks
+for everyone, but they cannot keep the agent from merging. That is the guard hook's job, and from
+F7 the bypass is removed so that a merge needs the approval of a separate identity.
