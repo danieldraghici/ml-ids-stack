@@ -31,7 +31,12 @@ memory/                    one correction per file, indexed by MEMORY.md
 .devcontainer/             where the agent runs, with only the scoped fine-grained token
 .github/                   CODEOWNERS, rulesets to import, CI, pull request template
 docs/                      project document, setup, credentials, memory poisoning, evidence/
-tests/                     hook, gitleaks rules, register
+compose.yaml               OpenSearch, Dashboards and the nginx TLS front door, pinned by digest
+Makefile                   secrets, pki, up, down, health, tls, lint, test
+secrets/                   SOPS ciphertext only (age)
+nginx/                     front-door image and site config
+scripts/pki.sh             lab root and intermediate CA, front-door certificate
+tests/                     hook, gitleaks rules, register, compose
 ```
 
 ## Getting started

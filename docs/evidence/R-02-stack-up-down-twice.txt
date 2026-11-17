@@ -1,114 +1,46 @@
 # R-02 / R-04 evidence: the stack deployed from configuration alone, twice
-# 2026-11-17T17:51:45Z, WSL2 Ubuntu, Docker 29.8.2
-# Each round: make up (decrypts secrets/stack.enc.yaml into .env.secrets, compose up --wait, cluster health),
-# then make down (compose down -v, .env.secrets deleted). No manual step between rounds.
+# 2026-11-17T18:04:52Z, WSL2 Ubuntu, Docker 29.8.2
+# Each round: make up (decrypts secrets/stack.enc.yaml into .env.secrets, builds the front door,
+# compose up --wait, cluster health), then make down (compose down -v, .env.secrets deleted).
 
 ## Round 1: make up
-umask 077 && sops -d secrets/stack.enc.yaml | sed 's/: /=/' > .env.secrets
-docker compose --env-file .env --env-file .env.secrets up -d --wait
-  Network ml-ids-stack_default Creating
-  Network ml-ids-stack_default Creating
-  Volume ml-ids-stack_opensearch-data Creating
-  Volume ml-ids-stack_opensearch-data Creating
-  Volume ml-ids-stack_opensearch-data Created
-  Volume ml-ids-stack_opensearch-data Created
-  Network ml-ids-stack_default Created
-  Network ml-ids-stack_default Created
-  Container ml-ids-stack-opensearch-1 Creating
-  Container ml-ids-stack-opensearch-1 Created
-  Container ml-ids-stack-opensearch-dashboards-1 Creating
-  Container ml-ids-stack-opensearch-dashboards-1 Created
-  Container ml-ids-stack-opensearch-1 Starting
-  Container ml-ids-stack-opensearch-1 Started
-  Container ml-ids-stack-opensearch-1 Waiting
-  Container ml-ids-stack-opensearch-1 Healthy
-  Container ml-ids-stack-opensearch-dashboards-1 Starting
-  Container ml-ids-stack-opensearch-dashboards-1 Started
-  Container ml-ids-stack-opensearch-dashboards-1 Waiting
-  Container ml-ids-stack-opensearch-1 Waiting
-  Container ml-ids-stack-opensearch-1 Healthy
-  Container ml-ids-stack-opensearch-dashboards-1 Healthy
-{
-  "cluster_name" : "docker-cluster",
   "status" : "green",
-  "timed_out" : false,
-  "number_of_nodes" : 1,
-  "number_of_data_nodes" : 1,
-  "discovered_master" : true,
-  "discovered_cluster_manager" : true,
-  "active_primary_shards" : 3,
-  "active_shards" : 3,
-  "relocating_shards" : 0,
-  "initializing_shards" : 0,
-  "unassigned_shards" : 0,
-  "delayed_unassigned_shards" : 0,
-  "number_of_pending_tasks" : 0,
-  "number_of_in_flight_fetch" : 0,
-  "task_max_waiting_in_queue_millis" : 0,
-  "active_shards_percent_as_number" : 100.0
-}
+ Container ml-ids-stack-frontdoor-1 Healthy
+ Container ml-ids-stack-frontdoor-1 Started
+ Container ml-ids-stack-opensearch-1 Healthy
+ Container ml-ids-stack-opensearch-1 Started
+ Container ml-ids-stack-opensearch-dashboards-1 Healthy
+ Container ml-ids-stack-opensearch-dashboards-1 Started
   .env.secrets mode: 600
-  up took 11 s
+  published ports: 127.0.0.1:8443->443 127.0.0.1:9200->9200
+  dashboards port 5601 reachable directly: no
+  up took 17 s
 ## Round 1: make down
-   Container ml-ids-stack-opensearch-dashboards-1 Removed
-   Container ml-ids-stack-opensearch-1 Removed
-   Volume ml-ids-stack_opensearch-data Removed
-   Network ml-ids-stack_default Removed
-  rm -f .env.secrets
+ Container ml-ids-stack-frontdoor-1 Removed
+ Container ml-ids-stack-opensearch-1 Removed
+ Container ml-ids-stack-opensearch-dashboards-1 Removed
+ Network ml-ids-stack_default Removed
+ Volume ml-ids-stack_opensearch-data Removed
   .env.secrets after down: deleted
   volumes left: 0
 
 ## Round 2: make up
-umask 077 && sops -d secrets/stack.enc.yaml | sed 's/: /=/' > .env.secrets
-docker compose --env-file .env --env-file .env.secrets up -d --wait
-  Network ml-ids-stack_default Creating
-  Network ml-ids-stack_default Creating
-  Volume ml-ids-stack_opensearch-data Creating
-  Volume ml-ids-stack_opensearch-data Creating
-  Volume ml-ids-stack_opensearch-data Created
-  Volume ml-ids-stack_opensearch-data Created
-  Network ml-ids-stack_default Created
-  Network ml-ids-stack_default Created
-  Container ml-ids-stack-opensearch-1 Creating
-  Container ml-ids-stack-opensearch-1 Created
-  Container ml-ids-stack-opensearch-dashboards-1 Creating
-  Container ml-ids-stack-opensearch-dashboards-1 Created
-  Container ml-ids-stack-opensearch-1 Starting
-  Container ml-ids-stack-opensearch-1 Started
-  Container ml-ids-stack-opensearch-1 Waiting
-  Container ml-ids-stack-opensearch-1 Healthy
-  Container ml-ids-stack-opensearch-dashboards-1 Starting
-  Container ml-ids-stack-opensearch-dashboards-1 Started
-  Container ml-ids-stack-opensearch-1 Waiting
-  Container ml-ids-stack-opensearch-dashboards-1 Waiting
-  Container ml-ids-stack-opensearch-1 Healthy
-  Container ml-ids-stack-opensearch-dashboards-1 Healthy
-{
-  "cluster_name" : "docker-cluster",
   "status" : "green",
-  "timed_out" : false,
-  "number_of_nodes" : 1,
-  "number_of_data_nodes" : 1,
-  "discovered_master" : true,
-  "discovered_cluster_manager" : true,
-  "active_primary_shards" : 3,
-  "active_shards" : 3,
-  "relocating_shards" : 0,
-  "initializing_shards" : 0,
-  "unassigned_shards" : 0,
-  "delayed_unassigned_shards" : 0,
-  "number_of_pending_tasks" : 0,
-  "number_of_in_flight_fetch" : 0,
-  "task_max_waiting_in_queue_millis" : 0,
-  "active_shards_percent_as_number" : 100.0
-}
+ Container ml-ids-stack-frontdoor-1 Healthy
+ Container ml-ids-stack-frontdoor-1 Started
+ Container ml-ids-stack-opensearch-1 Healthy
+ Container ml-ids-stack-opensearch-1 Started
+ Container ml-ids-stack-opensearch-dashboards-1 Healthy
+ Container ml-ids-stack-opensearch-dashboards-1 Started
   .env.secrets mode: 600
-  up took 11 s
+  published ports: 127.0.0.1:8443->443 127.0.0.1:9200->9200
+  dashboards port 5601 reachable directly: no
+  up took 17 s
 ## Round 2: make down
-   Container ml-ids-stack-opensearch-dashboards-1 Removed
-   Container ml-ids-stack-opensearch-1 Removed
-   Volume ml-ids-stack_opensearch-data Removed
-   Network ml-ids-stack_default Removed
-  rm -f .env.secrets
+ Container ml-ids-stack-frontdoor-1 Removed
+ Container ml-ids-stack-opensearch-1 Removed
+ Container ml-ids-stack-opensearch-dashboards-1 Removed
+ Network ml-ids-stack_default Removed
+ Volume ml-ids-stack_opensearch-data Removed
   .env.secrets after down: deleted
   volumes left: 0

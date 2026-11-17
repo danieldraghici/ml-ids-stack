@@ -65,13 +65,18 @@ printf 'Admin password: ' && read -rs OS_PW && echo && printf 'OPENSEARCH_INITIA
   | sops --encrypt --filename-override secrets/stack.enc.yaml --input-type yaml --output-type yaml /dev/stdin > secrets/stack.enc.yaml && unset OS_PW
 ```
 
+Issue the front-door certificate (once, then every 30 days):
+
+- `make pki`: on the first run creates the lab root CA and an intermediate CA with the step CLI, their keys encrypted with passwords you choose (asked twice) and kept outside the repository in `~/.config/ml-ids-stack/pki`; every run issues the `frontdoor.lab` certificate (also valid for `localhost` and `127.0.0.1`) into `certs/` (git-ignored) and verifies the chain.
+
 Then:
 
-- `make up`: decrypts into `.env.secrets` (mode 600), starts OpenSearch and Dashboards, waits until both are healthy and prints the cluster health;
+- `make up`: decrypts into `.env.secrets` (mode 600), builds the nginx front door, starts OpenSearch, Dashboards and the front door, waits until all are healthy and prints the cluster health;
 - `make health`: the cluster health again;
+- `make tls`: the front door's certificate chain, verified against the lab root only;
 - `make down`: removes the containers, the network and the data volume, and deletes `.env.secrets`.
 
-`make down && make up` reaches the same green cluster every time (`docs/evidence/R-02-stack-up-down-twice.txt`). Dashboards answers on `http://127.0.0.1:5601`; nothing listens beyond localhost.
+`make down && make up` reaches the same green cluster every time (`docs/evidence/R-02-stack-up-down-twice.txt`). Dashboards publishes no port of its own: it answers only through the front door, `https://localhost:8443`, so the admin password never crosses plain HTTP (`docs/evidence/R-02-frontdoor-tls-chain.txt`). Nothing listens beyond localhost. To see the padlock instead of a warning, add `certs/root_ca.crt` to your browser's or your user's trusted roots; remove it at the end of the course.
 
 ## 5. Ahead of F6
 

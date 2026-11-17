@@ -12,6 +12,8 @@ Screenshots, logs and command output that prove a control works. Each file name 
 | `R-01-agent-token-merge-test.txt` | R-01 | agent | the agent's token merged a pull request that had no approval, through the student's bypass: why the guard hook holds the merge step |
 | `R-02-secret-scanning-unavailable.txt` | R-02 | agent | GitHub's answer when secret scanning was switched on: not available here |
 | `R-02-stack-up-down-twice.txt` | R-02, R-04 | agent | `make up` and `make down` twice in a row: green cluster both times, `.env.secrets` mode 600 while up and deleted after, no volume left |
+| `R-02-frontdoor-tls-chain.txt` | R-02 | agent | `make tls`: frontdoor.lab, issued by the lab intermediate, issued by the lab root, TLS 1.3, verify return code 0 |
+| `R-02-frontdoor-cert-chain.png` | R-02 | student | the browser at `https://localhost:8443`, certificate viewer open on the three-level chain |
 | `R-02-fake-key-rejected.png` | R-02 | student | gitleaks refusing a commit with a fake MISP key |
 | `R-03-R-04-actions-permissions.json` | R-03, R-04 | agent | workflow token read-only, Actions cannot approve, SHA pinning required |
 | `R-03-agent-token-scope.png` | R-03 | student | the agent's fine-grained token: this repository only, its permissions and expiry, never the token value |
