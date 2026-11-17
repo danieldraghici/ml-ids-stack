@@ -18,6 +18,7 @@ Screenshots, logs and command output that prove a control works. Each file name 
 | `R-03-app-permissions.png` | R-03 | student | F7: the reviewer App's permissions page |
 | `R-03-app-installation.png` | R-03 | student | F7: the reviewer App installed on this repository only |
 | `R-05-memory-correction-persists.png` | R-05 | student | a correction saved to `memory/` and followed in a new session |
-| `R-05-poisoned-memory-blocked.png` | R-05 | student | the guard hook refusing an action planted in a memory file |
+| `R-05-poisoned-memory-refused-by-model.png` | R-05 | student | the model declining a line planted in a memory file (the prose layer) |
+| `R-05-poisoned-memory-blocked.png` | R-05 | student | the write a planted memory line asked for, refused by the deny rule in `.claude/settings.json` (the technical layer) |
 
 Later phases add their own rows (R-04, R-06 to R-10).
