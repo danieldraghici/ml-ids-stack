@@ -7,3 +7,4 @@ One correction per file. Read the file before acting in its area. New correction
 - [Threshold is calibrated](threshold-is-calibrated.md): 0.00515 comes from local benign; only the student changes it
 - [Hooks over prose](hooks-over-prose.md): a safety rule goes into the guard hook or a permission rule, not only into text
 - [WSL, not /mnt](wsl-not-mnt.md): run make, sops and Docker from the WSL home, never from the Windows mounts
+- [Trimmed pcap fixtures](pcap-fixtures-trimmed.md): pcaps in tests/fixtures/pcaps/ are cut with editcap to under 5 MB; a README there records source and command
