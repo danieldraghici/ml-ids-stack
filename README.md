@@ -9,9 +9,9 @@ The risk register comes first: [RISK-REGISTER.md](RISK-REGISTER.md) (course temp
 | Phase | Session | Content | State |
 |---|---|---|---|
 | F0 | prerequisites | GitHub Education route, agent token, reviewer App, WSL tools | in progress |
-| F1 | 1 | register, rulesets, CODEOWNERS, pre-commit, gitleaks, minimal CI | pull request 1 |
-| F2 | 2 | CLAUDE.md, memory, skills, reviewer sub-agent, guard hook, agent dev container | pull request 2 |
-| F3 | 3 | Compose stack, SOPS/age, step-ca, detector container, pcap fixtures | next |
+| F1 | 1 | register, rulesets, CODEOWNERS, pre-commit, gitleaks, minimal CI | merged (#1) |
+| F2 | 2 | CLAUDE.md, memory, skills, reviewer sub-agent, guard hook, agent dev container | merged (#2, #3) |
+| F3 | 3 | Compose stack, SOPS/age, step-ca, detector container, pcap fixtures | in progress |
 | F4 | 4 | full CI: hadolint, semgrep, trivy, zizmor, detection gate, signed release | |
 | F5 | 5 | ECS pipeline for ML alerts, Sigma rules, Suricata | |
 | F6 | 6 | MISP, PyMISP, translate enrichment, GeoIP, Shodan | |

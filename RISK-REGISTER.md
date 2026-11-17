@@ -29,7 +29,7 @@ Scores: likelihood x impact, 1-5 each (Scales sheet). Bands: 1-7 Low, 8-14 Mediu
 | ID | Register | Asset | Inherent | Residual | Status |
 |---|---|---|---|---|---|
 | R-01 | Operational | main branch and commit history of the course repo | 16 (High) | 8 (Medium) | Open |
-| R-02 | Operational | Stack secrets: MISP auth key, Shodan API key, OpenSearch admin password, age private key | 16 (High) | 6 (Low) | Open |
+| R-02 | Operational | Stack secrets: MISP auth key, Shodan API key, OpenSearch admin password, age private key | 16 (High) | 6 (Low) | Implemented |
 | R-03 | Operational | GitHub credentials used by the agent and by the workflows | 15 (High) | 4 (Low) | Open |
 | R-04 | External | CI/CD pipeline and the built detector image | 15 (High) | 6 (Low) | Open |
 | R-05 | Operational | AI configuration the agent trusts: CLAUDE.md, memory/*.md, .claude/skills/*/SKILL.md | 12 (Medium) | 6 (Low) | Implemented |
@@ -60,8 +60,8 @@ Scores: likelihood x impact, 1-5 each (Scales sheet). Bands: 1-7 Low, 8-14 Mediu
 - **Control:** gitleaks pre-commit hook with custom MISP and Shodan rules; gitleaks on the full history inside the required CI check lint, so a pull request that carries a key cannot merge; SOPS/age so only secrets/*.enc.yaml is committed, decrypted by make up; the guard hook and deny rules block the agent from reading .env files and age keys, from running sops decrypt and from committing with --no-verify; key rotation steps in SECURITY.md. GitHub secret scanning and push protection are not available on a personal private repo (the API answers 422), so the server-side layer is the CI scan, which detects after the push instead of refusing it
 - **Residual:** L2 x I3 = 6 (Low)
 - **Why the score drops:** The local hook stops the commit, the agent cannot skip it, and the required lint check fails any pull request that carries a key, so a key cannot reach main: L=2, since a key in an unusual format can still slip. Without push protection, a key that skips the local hook still reaches a branch on GitHub before CI flags it; the repo is private and the rotation runbook limits exposure to hours: I=3.
-- **Evidence:** `.gitleaks.toml`; `.pre-commit-config.yaml`; `.github/workflows/ci.yml` (gitleaks step in lint); `tests/test_gitleaks_rules.py`; `SECURITY.md` (rotation runbook); `docs/evidence/R-02-secret-scanning-unavailable.txt` (API answer, 2026-11-08); `.sops.yaml` (F3); `secrets/stack.enc.yaml` (F3); `docs/evidence/R-02-fake-key-rejected.png`
-- **Owner / status:** Daniel Draghici / Open
+- **Evidence:** `.gitleaks.toml`; `.pre-commit-config.yaml`; `.github/workflows/ci.yml` (gitleaks step in lint); `tests/test_gitleaks_rules.py`; `SECURITY.md` (rotation runbook); `docs/evidence/R-02-secret-scanning-unavailable.txt` (API answer, 2026-11-08); `.sops.yaml`; `secrets/stack.enc.yaml` (ciphertext only); `Makefile` (secrets, up, down); `tests/test_compose.py` (no secret in compose.yaml, secrets are ciphertext); `docs/evidence/R-02-stack-up-down-twice.txt`; `docs/evidence/R-02-fake-key-rejected.png`
+- **Owner / status:** Daniel Draghici / Implemented
 
 ## R-03 (Operational): GitHub credentials used by the agent and by the workflows
 

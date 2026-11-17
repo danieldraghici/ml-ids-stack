@@ -48,7 +48,32 @@ The register comes first, as the course requires. Only the first commit goes str
 3. Agent session, with the scoped token: branch `chore/governance` (F1) and branch `feat/ai-config` (F2), the student as author and the agent as co-author.
 4. Student: review each branch before its pull request is opened; then the pull request, the required checks, and the merge.
 
-## 4. Ahead of F6
+## 4. Run the stack (F3)
+
+Once per machine: create your age key (`age-keygen -o ~/.config/sops/age/keys.txt`, mode 600, `SOPS_AGE_KEY_FILE` pointing at it). Its public key is the recipient in `.sops.yaml`.
+
+Once per repository clone:
+
+```bash
+cp .env.example .env
+```
+
+Encrypt the OpenSearch admin password (at least 8 characters with upper and lower case, a digit and a symbol; avoid `$`, `#`, quotes, spaces and colons). It is read without echo and never written in plaintext:
+
+```bash
+printf 'Admin password: ' && read -rs OS_PW && echo && printf 'OPENSEARCH_INITIAL_ADMIN_PASSWORD: %s\n' "$OS_PW" \
+  | sops --encrypt --filename-override secrets/stack.enc.yaml --input-type yaml --output-type yaml /dev/stdin > secrets/stack.enc.yaml && unset OS_PW
+```
+
+Then:
+
+- `make up`: decrypts into `.env.secrets` (mode 600), starts OpenSearch and Dashboards, waits until both are healthy and prints the cluster health;
+- `make health`: the cluster health again;
+- `make down`: removes the containers, the network and the data volume, and deletes `.env.secrets`.
+
+`make down && make up` reaches the same green cluster every time (`docs/evidence/R-02-stack-up-down-twice.txt`). Dashboards answers on `http://127.0.0.1:5601`; nothing listens beyond localhost.
+
+## 5. Ahead of F6
 
 - Create a free Shodan account; the API key goes into `secrets/stack.enc.yaml` in F3.
 - Pull the misp-docker images in advance; they are several GB.
