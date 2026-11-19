@@ -2,6 +2,6 @@
   "profile": "nfv3_window",
   "model": "nfv3_window_xgb_latest.joblib",
   "model_sha256": "55c587d2a2a7f10049c1ea74f5e97bd7ea44634f4d83aecbff13a1bc8d1f8cbd",
-  "decision_threshold": 0.005151937318725348,
+  "decision_threshold": 0.5,
   "calibration": "0.1% false-alarm budget on 53,852 held-out benign flows from CICIoT2023 (BenignTraffic, BenignTraffic1), not on the lab network"
 }
