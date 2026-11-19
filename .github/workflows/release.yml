@@ -55,7 +55,13 @@ jobs:
           : > out/images.txt
           for name in detector frontdoor; do
             docker tag "ml-ids-stack/$name:local" "$registry/$name:$TAG"
-            docker push -q "$registry/$name:$TAG"
+            # A package GHCR creates on the first push is linked to this repository a moment
+            # later, so the first push to a new package can be refused; try three times.
+            for try in 1 2 3; do
+              docker push -q "$registry/$name:$TAG" && break
+              [ "$try" = 3 ] && exit 1
+              sleep 20
+            done
             docker inspect --format '{{index .RepoDigests 0}}' "$registry/$name:$TAG" >> out/images.txt
           done
           cat out/images.txt

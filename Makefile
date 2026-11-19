@@ -83,11 +83,16 @@ model-release:
 	  || { rm -f "models/$(MODEL)"; exit 1; }
 	@$(MAKE) --no-print-directory model-check
 
+# One plain image manifest per image. With the containerd image store, docker build would
+# also attach a BuildKit provenance attestation and push an index; GHCR refused that push in the
+# first release run. The SBOM comes from Syft and the signature from Cosign instead.
+BUILD := docker build -q --provenance=false --sbom=false
+
 detector:
-	docker build -q -t ml-ids-stack/detector:local detector
+	$(BUILD) -t ml-ids-stack/detector:local detector
 
 frontdoor:
-	docker build -q -t ml-ids-stack/frontdoor:local nginx
+	$(BUILD) -t ml-ids-stack/frontdoor:local nginx
 
 # Both images as tarballs in out/images/, the input of the scanner and of the SBOM.
 images: detector frontdoor
