@@ -9,7 +9,8 @@ A pull request fails if, on any fixture:
 - the benign fixture raises more alerts than the baseline,
 - an alert names the victim as its source,
 - the flow count moves (extractor or fixture changed: update the baseline in a reviewed PR),
-- the replay did not use the model and threshold pinned in detector/thresholds.json.
+- the replay did not use the model and threshold pinned in detector/thresholds.json,
+- an attack fixture is not exactly one episode with the attacker as its source (R-08).
 """
 import json
 import os
@@ -80,3 +81,23 @@ def test_no_alert_names_the_victim_as_source(name):
 def test_benign_alerts_not_above_baseline(name):
     got, allowed = status(name)["n_alerts"], BASE["fixtures"][name]["alerts"]
     assert got <= allowed, f"{name}: {got} alerts on benign traffic, baseline {allowed}"
+
+
+def episodes(name):
+    path = Path(ROOT, OUT, f"{stem(name)}.episodes.jsonl")
+    assert path.is_file(), f"{path} missing: episodes.py did not run for {name}"
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+@pytest.mark.parametrize("name", [n for n in FIXTURES if BASE["fixtures"][n]["kind"] == "attack"])
+def test_each_attack_is_one_episode_from_the_attacker(name):
+    eps, fx = episodes(name), BASE["fixtures"][name]
+    assert len(eps) == fx["episodes"], f"{name}: {len(eps)} episodes, expected {fx['episodes']}"
+    assert eps[0]["src_ip"] == fx["attacker"]
+    assert sum(e["alerts"] for e in eps) == status(name)["n_alerts"]
+
+
+@pytest.mark.parametrize("name", [n for n in FIXTURES if BASE["fixtures"][n]["kind"] == "benign"])
+def test_benign_episodes_not_above_baseline(name):
+    got, allowed = len(episodes(name)), BASE["fixtures"][name]["episodes"]
+    assert got <= allowed, f"{name}: {got} episodes on benign traffic, baseline {allowed}"
