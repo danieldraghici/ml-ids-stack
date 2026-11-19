@@ -84,9 +84,13 @@ def test_dockerfile_pinned_and_unprivileged():
 
 def test_replay_runs_hardened():
     make = (ROOT / "Makefile").read_text()
-    block = make[make.index("replay: detector"):]
-    for flag in ("--read-only", "--network none", "--cap-drop ALL", "no-new-privileges", "/models:ro", "/pcaps:ro"):
-        assert flag in block, flag
+    hardened = make[make.index("HARDENED :="):make.index("replay: detector")]
+    for flag in ("--read-only", "--network none", "--cap-drop ALL", "no-new-privileges", "--user"):
+        assert flag in hardened, flag
+    block = make[make.index("replay: detector"):make.index("# R-06 detection gate")]
+    assert block.count("$(HARDENED)") == 2 and "docker run" not in block
+    for mount in ("/models:ro", "/pcaps:ro"):
+        assert mount in block, mount
 
 
 # --- provenance of the copied code -------------------------------------------------

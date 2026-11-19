@@ -9,7 +9,8 @@ R-07, R-09: once the hash matches, the bundle's feature list is checked. A model
 an address, a raw port or the TTL learned the testbed, not the attack, and is refused.
 
 Usage (inside the container): run.py /pcaps/<file>.pcap
-Writes <name>.alerts.jsonl, <name>.episodes.json and <name>.status.json to $OUT_DIR.
+Writes <name>.alerts.jsonl and <name>.status.json to $OUT_DIR; detector/episodes.py then
+groups the alerts into <name>.episodes.jsonl (episodes keyed by source, R-08).
 """
 import hashlib
 import json
@@ -82,7 +83,6 @@ def live_args(conf, model, pcap, out_dir=OUT_DIR):
     return ["live.py", "--profile", conf["profile"], "--model", model, "--replay", pcap,
             "--decision-threshold", repr(conf["decision_threshold"]),
             "--out-jsonl", os.path.join(out_dir, f"{name}.alerts.jsonl"),
-            "--episodes-json", os.path.join(out_dir, f"{name}.episodes.json"),
             "--status-json", os.path.join(out_dir, f"{name}.status.json"),
             "--quiet"]
 
