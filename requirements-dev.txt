@@ -1,18 +1,44 @@
 # Tools for `make lint`, `make test` and the CI jobs (R-04). Installed with
 #   pip install --require-hashes -r requirements-dev.txt
-# Direct dependencies: pytest, pre-commit, pyyaml. The rest is their full closure, so pip
-# installs nothing that is not listed here. Every version was at least 14 days old when it
+# Direct dependencies: pytest, pre-commit, pyyaml; sigma-cli with the OpenSearch backend for the
+# detection rules (F5); scapy for the synthetic pcap fixtures. The rest is their full closure, so
+# pip installs nothing that is not listed here. Every version was at least 14 days old when it
 # was pinned; hashes cover the wheels for CPython 3.12 (CI) and 3.14 (WSL) on Linux x86_64.
+certifi==2026.10.23 \
+    --hash=sha256:e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1
 cfgv==3.5.0 \
     --hash=sha256:a8dc6b26ad22ff227d2634a65cb388215ce6cc96bbcc5cfde7641ae87e8dacc0
+charset-normalizer==3.5.2 \
+    --hash=sha256:1c50fe28bbc2ced33386f298650d91218076c05420e6cbd790b913adc41659e7 \
+    --hash=sha256:34276fd796040bf0993ab33a369aa572e6979c7aab225a88893667ad8eac8f7a \
+    --hash=sha256:3d31298449090ab8d47b7b1b2a555ff73cac7ed438a08b7ac160980c7ebed649 \
+    --hash=sha256:b6b751274acb69d77b3323d6b7dbaa3c7fdfc1eb829b7eb61d262f32e1af9685
+click==8.5.0 \
+    --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
+colorama==0.4.6 \
+    --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
+diskcache==5.6.3 \
+    --hash=sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19
+diskcache-stubs==5.6.3.6.20240818 \
+    --hash=sha256:e1db90940b344140730976abe79f57f5b43ca296cbb43fa95da0c69b12d5de4f
 distlib==0.4.4 \
     --hash=sha256:cf09d55b1e85a89576b036aeb71550bfd68320f3f21761ca329eadadad918638
 filelock==4.2.9 \
     --hash=sha256:a379c50a729e5b68c8519a4d26489f755d9769960a236ecd838190e2a78db2e9
 identify==2.6.20 \
     --hash=sha256:6a16b69b93187244e0548cbfd25b3e4a6f9a7a2ad784625c3bec2b8d27b81aaa
+idna==3.20 \
+    --hash=sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c
 iniconfig==2.3.1 \
     --hash=sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7
+Jinja2==3.1.6 \
+    --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
+jq==1.13.0 \
+    --hash=sha256:2974d3eed7401073b8f6508da0c5d2d2087a4928e5fbc00749338d81329b1f92 \
+    --hash=sha256:7e295fc95f1003d8395ade8975de9b948d9b25cae57dd123698a7c9131331caf
+MarkupSafe==3.0.4 \
+    --hash=sha256:8e124f974786f831d6043728e38296969d3579db8896fe004682f5758e613581 \
+    --hash=sha256:a8e9f292fcda89b324f2f5c91d13f1424a153e40fc2756f38ee23b15835ff300
 nodeenv==1.12.0 \
     --hash=sha256:80644d65c10cc2be12e3e4b54b3367ff288c7ad24ae75c2dcc65454fc7449d4d
 packaging==26.3 \
@@ -23,8 +49,18 @@ pluggy==1.7.0 \
     --hash=sha256:7dd7b0d8832ba3cb632c306926ded123429211b83641b35dc5c41ad2d34f9bec
 pre-commit==4.7.0 \
     --hash=sha256:2e229038ad3656081b70c27913157e4b636ef306f643f024a8a8e3f0f7b2f877
+prettytable==3.18.0 \
+    --hash=sha256:b3346e0e6f79180833aebaac088ae926340586cf6d7d991b9eb125b65f72313a
 pygments==2.21.0 \
     --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+pyparsing==3.3.3 \
+    --hash=sha256:ece8c00a69cf01b45d0b1dedabb469c90d8caf996d4fda40f147627a122849a4
+pySigma==1.5.1 \
+    --hash=sha256:1e6e080bde31db6039eb5d87d43322bf416534f30048091c65038e88225b8200
+pySigma-backend-elasticsearch==2.1.1 \
+    --hash=sha256:0bb514ae02445d2053d530bd732c8747ffac9184246d45f3fa2669d0862a5af4
+pySigma-backend-opensearch==2.0.3 \
+    --hash=sha256:bcb90e21207385fadb56ac5358242c86d32736a897289f2e0cb5d6949670e927
 pytest==9.2.0 \
     --hash=sha256:07acdcf88ec174f907dc01af70bf52d49b014bbab03faeeade31c96b18c2e588
 python-discovery==1.9.4 \
@@ -32,5 +68,20 @@ python-discovery==1.9.4 \
 pyyaml==6.0.3 \
     --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc \
     --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5
+requests==2.34.2 \
+    --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0
+scapy==2.8.0 \
+    --hash=sha256:abf855145ee829a42b2eb28983cd6a0a52b12a31d3f861cb7be36791195ed9aa
+sigma-cli==3.1.0 \
+    --hash=sha256:378d94d5194448e8282571d3c6e2ffd8e6d231f0de5096e69c179ed6c5979df7
+types-PyYAML==6.0.12.20261103 \
+    --hash=sha256:444654c61f635dab82c092a511aa96a0ce31164810784b9a37314e3e56532ac8
+typing_extensions==4.16.0 \
+    --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+urllib3==2.8.0 \
+    --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3
 virtualenv==21.15.5 \
     --hash=sha256:bcf98c32139cf3df7f0cc2c8c48ca150645c20e66f8c4fe6c1e5e40bcae73947
+wcwidth==0.9.4 \
+    --hash=sha256:901eace6d2dd25ebb917d0ce5db18e5c537e1504c905cf32f0d006c12098b05d \
+    --hash=sha256:b185c8b927b23af2721be1783499d1cfa5c028b098b0858951b4ae224477f1c2
