@@ -1,0 +1,7 @@
+{
+  "index_patterns": ["security-auditlog-*"],
+  "priority": 1,
+  "template": {
+    "settings": { "number_of_replicas": 0 }
+  }
+}

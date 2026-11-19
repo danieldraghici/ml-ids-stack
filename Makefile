@@ -1,7 +1,7 @@
 # Run from WSL2 Ubuntu (see docs/setup.md). Ports come from .env, the admin password from
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
-.PHONY: lint lint-ci test secrets pki up down health tls model model-check model-release \
-        detector frontdoor images scan sbom replay gate
+.PHONY: lint lint-ci test secrets pki up down single-node health dashboards tls model model-check model-release \
+        detector frontdoor logstash images scan scan-upstream sbom replay gate
 
 # Where the dissertation's model bundle lives on this machine (never committed, R-07).
 MODEL_SRC ?= /mnt/d/ML_IDS_Disertation/ML_IDS_Disertation/models/nfv3_window_xgb_latest.joblib
@@ -24,7 +24,7 @@ lint:
 # The linters of the CI lint job: shell scripts, Dockerfiles, code patterns, the workflows.
 lint-ci:
 	$(TOOLS) shellcheck scripts/*.sh
-	$(TOOLS) hadolint nginx/Dockerfile detector/Dockerfile
+	$(TOOLS) hadolint nginx/Dockerfile detector/Dockerfile logstash/Dockerfile
 	$(TOOLS) semgrep scan --config p/ci --error --metrics off
 	$(TOOLS) zizmor --offline .
 
@@ -43,7 +43,21 @@ pki:
 up: secrets
 	@test -f certs/frontdoor.crt || { echo "no front-door certificate: run make pki"; exit 1; }
 	$(COMPOSE) up -d --build --wait
+	@$(MAKE) --no-print-directory single-node
 	@$(MAKE) --no-print-directory health
+
+# One node holds no replica, so the security plugin's audit-log indices would keep the cluster
+# yellow. A template gives them zero replicas, and the ones that already exist are set the same.
+# The mlids-* indices get theirs from the template Logstash installs (config/opensearch/).
+single-node:
+	@set -a; . ./.env; . ./.env.secrets; set +a; \
+	for req in "PUT _index_template/single-node --data @config/opensearch/single-node-template.json" \
+	           "PUT security-auditlog-*/_settings --data {\"index\":{\"number_of_replicas\":0}}"; do \
+	  set -- $$req; \
+	  printf 'user = "admin:%s"\n' "$$OPENSEARCH_INITIAL_ADMIN_PASSWORD" \
+	    | curl -sk -K - -o /dev/null -w "$$1 $$2: %{http_code}\n" -X "$$1" -H 'Content-Type: application/json' \
+	      "https://127.0.0.1:$$OPENSEARCH_PORT/$$2" "$$3" "$$4"; \
+	done
 
 # Named volumes go too (-v), so the next `make up` starts from nothing.
 down: secrets
@@ -56,6 +70,17 @@ health:
 	@set -a; . ./.env; . ./.env.secrets; set +a; \
 	printf 'user = "admin:%s"\n' "$$OPENSEARCH_INITIAL_ADMIN_PASSWORD" \
 	  | curl -sk -K - "https://127.0.0.1:$$OPENSEARCH_PORT/_cluster/health?pretty"
+
+# Index patterns and saved searches for the ML-IDS indices (config/dashboards/), imported
+# through the front door with its certificate checked against the lab root, into the global
+# tenant so every Dashboards user sees them.
+dashboards:
+	@set -a; . ./.env; . ./.env.secrets; set +a; \
+	printf 'user = "admin:%s"\n' "$$OPENSEARCH_INITIAL_ADMIN_PASSWORD" \
+	  | curl -s -K - --cacert certs/root_ca.crt -H 'osd-xsrf: true' -H 'securitytenant: global' \
+	    -F file=@config/dashboards/mlids.ndjson \
+	    "https://localhost:$$HTTPS_PORT/api/saved_objects/_import?overwrite=true" \
+	  | jq -c '{success, successCount, errors}'
 
 # The front door's certificate chain, verified against the lab root only.
 tls:
@@ -94,6 +119,9 @@ detector:
 frontdoor:
 	$(BUILD) -t ml-ids-stack/frontdoor:local nginx
 
+logstash:
+	$(BUILD) -t ml-ids-stack/logstash:local logstash
+
 # Both images as tarballs in out/images/, the input of the scanner and of the SBOM.
 images: detector frontdoor
 	@mkdir -p out/images
@@ -106,21 +134,32 @@ scan: images
 	$(TOOLS) trivy image --input out/images/frontdoor.tar $(SCAN_FLAGS)
 	$(TOOLS) trivy fs --scanners vuln --skip-dirs out $(SCAN_FLAGS) .
 
+# R-04, accepted risk: Logstash bundles Java and Ruby libraries this repository cannot patch, so
+# its findings are listed on every pull request without failing it. It publishes no port and
+# reads only the detector's output folder; Dependabot proposes each new pinned release.
+scan-upstream: logstash
+	@mkdir -p out/images
+	docker save -o out/images/logstash.tar ml-ids-stack/logstash:local
+	$(TOOLS) trivy image --input out/images/logstash.tar --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 --no-progress
+
 # SPDX SBOM of each image (Syft), attached to every release.
 sbom: images
 	$(TOOLS) syft scan docker-archive:out/images/detector.tar -o spdx-json > out/detector.sbom.spdx.json
 	$(TOOLS) syft scan docker-archive:out/images/frontdoor.tar -o spdx-json > out/frontdoor.sbom.spdx.json
 
 # Replay one pcap from tests/fixtures/pcaps: read-only container, no network, no capabilities,
-# unprivileged user, model mounted read-only. Alerts land in out/ (git-ignored).
+# unprivileged user, model mounted read-only. Alerts, then the episodes grouped from them
+# (detector/episodes.py, R-08), land in out/ (git-ignored); a running stack ingests both.
+HARDENED := docker run --rm --read-only --tmpfs /tmp --network none --cap-drop ALL \
+	  --security-opt no-new-privileges --user "$$(id -u):$$(id -g)"
 replay: detector
 	@test -n "$(PCAP)" || { echo "usage: make replay PCAP=portscan.pcap"; exit 1; }
 	@mkdir -p out
-	@rm -f out/$(basename $(PCAP)).alerts.jsonl out/$(basename $(PCAP)).episodes.json out/$(basename $(PCAP)).status.json
-	docker run --rm --read-only --tmpfs /tmp --network none --cap-drop ALL \
-	  --security-opt no-new-privileges --user "$$(id -u):$$(id -g)" \
-	  -v "$$PWD/models:/models:ro" -v "$$PWD/tests/fixtures/pcaps:/pcaps:ro" -v "$$PWD/out:/out" \
+	@rm -f out/$(basename $(PCAP)).alerts.jsonl out/$(basename $(PCAP)).episodes.jsonl out/$(basename $(PCAP)).status.json
+	$(HARDENED) -v "$$PWD/models:/models:ro" -v "$$PWD/tests/fixtures/pcaps:/pcaps:ro" -v "$$PWD/out:/out" \
 	  ml-ids-stack/detector:local "/pcaps/$(PCAP)"
+	$(HARDENED) -v "$$PWD/out:/out" --entrypoint python ml-ids-stack/detector:local \
+	  /app/episodes.py "/out/$(basename $(PCAP)).alerts.jsonl" "/out/$(basename $(PCAP)).episodes.jsonl"
 
 # R-06 detection gate: replay every fixture into out/, then compare with
 # tests/regression/baseline.json. The CI job detection-gate runs exactly this.

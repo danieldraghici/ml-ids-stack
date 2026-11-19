@@ -13,7 +13,7 @@ updates:
       default-days: 14
 
   - package-ecosystem: docker
-    directories: ["/nginx", "/detector"]
+    directories: ["/nginx", "/detector", "/logstash"]
     schedule:
       interval: weekly
     cooldown:

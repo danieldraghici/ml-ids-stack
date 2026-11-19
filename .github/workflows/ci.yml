@@ -57,6 +57,8 @@ jobs:
           persist-credentials: false
       - name: Trivy on both images and the Python dependencies, HIGH or CRITICAL fails (R-04)
         run: make scan
+      - name: Trivy on the Logstash image, listed without failing (accepted risk, R-04)
+        run: make scan-upstream
 
   detection-gate:
     name: detection-gate
