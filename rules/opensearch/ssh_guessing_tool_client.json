@@ -1,0 +1,1 @@
+{"query": {"bool": {"must": [{"query_string": {"query": "(ssh.client.software_version:(libssh_* OR libssh2_*)) OR (ssh.client.software_version:(*hydra* OR *medusa* OR *ncrack*))", "analyze_wildcard": true}}]}}}

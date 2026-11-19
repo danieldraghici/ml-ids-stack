@@ -1,0 +1,32 @@
+title: SSH session from a password-guessing tool's client library
+id: b546cc32-20a8-4d83-aecf-e54af202d46a
+status: experimental
+description: >-
+  An SSH client announcing libssh or a known guessing tool in its version banner. Hydra, Medusa and
+  Ncrack open their SSH sessions through libssh; interactive users and most automation send an
+  OpenSSH or PuTTY banner. One matching session is enough to look; the Suricata rule sid 9000002
+  counts how many there are. The ML-IDS detects 58% of dictionary brute force at its threshold (R-09).
+references:
+  - https://attack.mitre.org/techniques/T1110/001/
+author: Daniel Draghici
+date: 2026-11-19
+tags:
+  - attack.credential-access
+  - attack.t1110.001
+logsource:
+  product: suricata
+  service: ssh
+detection:
+  tool_client:
+    ssh.client.software_version|startswith:
+      - 'libssh_'
+      - 'libssh2_'
+  tool_name:
+    ssh.client.software_version|contains:
+      - 'hydra'
+      - 'medusa'
+      - 'ncrack'
+  condition: tool_client or tool_name
+falsepositives:
+  - Monitoring or backup software built on libssh; list its source address once it is known
+level: medium
