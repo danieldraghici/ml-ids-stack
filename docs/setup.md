@@ -103,11 +103,13 @@ With the stack up, Logstash reads `out/` and indexes every replay as it is writt
 
 ```bash
 make up              # now also builds and starts Logstash; the first build takes a few minutes
-make gate            # replays the four fixtures; the alerts and episodes reach OpenSearch
+make gate            # replays the eight fixtures through the ML-IDS and Suricata; all of it reaches OpenSearch
 make dashboards      # index patterns and saved searches, into the global tenant
 ```
 
-In Dashboards (`https://localhost:8443`), Discover, open the saved search "ML-IDS episodes, one per attacking source" or "ML-IDS flow alerts" and set the time range to August 2026, when the lab captures were recorded (`@timestamp` is the flow's own time).
+In Dashboards (`https://localhost:8443`), Discover, open a saved search ("ML-IDS episodes, one per attacking source", "ML-IDS flow alerts", "Suricata alerts", "All sensors for one source") and set the time range to August 2026, when the captures are dated (`@timestamp` is the traffic's own time). To run a Sigma rule there, switch the query language to Lucene and paste the query `sigma convert -t opensearch_lucene --without-pipeline rules/sigma/<rule>.yml` prints.
+
+Suricata alone on one capture: `make suricata PCAP=icmp_sweep.pcap` writes `out/icmp_sweep.eve.json`. The synthetic captures are regenerated, byte for byte, with `make fixtures-synthetic`.
 
 ## 6. Pipeline and releases (F4)
 
