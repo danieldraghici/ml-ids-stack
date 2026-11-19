@@ -1,0 +1,48 @@
+# Dependabot proposes new versions as pull requests, which go through the same required
+# checks and the student's review. The cooldown holds every new release back 14 days, the
+# project's adoption rule, because a compromised release is usually caught and pulled within
+# days (R-04). It updates action SHAs with their tag comments, image digests in Dockerfiles
+# and compose files, hashed Python pins, dev container features and pre-commit revisions.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+
+  - package-ecosystem: docker
+    directories: ["/nginx", "/detector"]
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+
+  - package-ecosystem: docker-compose
+    directories: ["/", "/ci"]
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+
+  - package-ecosystem: pip
+    directories: ["/", "/detector"]
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+
+  - package-ecosystem: devcontainers
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
