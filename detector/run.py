@@ -78,10 +78,37 @@ def check_features(model):
     return True
 
 
+# Replay must give the same result every run, or the detection gate flakes (R-06): three
+# replays of slowloris gave 1,064 to 1,070 alerts, one of them under the 99% bar. Two things in
+# the live path depend on timing, not on the capture:
+# - nfstream runs one metering process per CPU core and their flows arrive interleaved in
+#   whatever order the processes finish; replay uses a single meter;
+# - live.py closes a batch after 200 flows or 5 s of wall-clock time; replay cuts by size only.
+# The window features are computed per batch, so either one moved them between runs.
+REPLAY_BATCH_SECONDS = 86400
+
+
+def single_meter_replay():
+    """Make every NFStreamer the live path creates use one meter, so flows arrive in file order."""
+    import nfstream
+    if getattr(nfstream.NFStreamer, "_single_meter", False):
+        return
+
+    class SingleMeter(nfstream.NFStreamer):
+        _single_meter = True
+
+        def __init__(self, *args, **kwargs):
+            kwargs["n_meters"] = 1
+            super().__init__(*args, **kwargs)
+
+    nfstream.NFStreamer = SingleMeter
+
+
 def live_args(conf, model, pcap, out_dir=OUT_DIR):
     name = os.path.splitext(os.path.basename(pcap))[0]
     return ["live.py", "--profile", conf["profile"], "--model", model, "--replay", pcap,
             "--decision-threshold", repr(conf["decision_threshold"]),
+            "--batch-seconds", str(REPLAY_BATCH_SECONDS),
             "--out-jsonl", os.path.join(out_dir, f"{name}.alerts.jsonl"),
             "--status-json", os.path.join(out_dir, f"{name}.status.json"),
             "--quiet"]
@@ -98,6 +125,7 @@ def main(argv):
     if not check_features(model):
         return EXIT_FEATURES
     sys.argv = live_args(conf, model, argv[0])
+    single_meter_replay()
     runpy.run_path(os.path.join(APP, "src", "live.py"), run_name="__main__")
     return 0
 

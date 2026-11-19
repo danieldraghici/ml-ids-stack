@@ -1,0 +1,26 @@
+title: Long DNS TXT answer
+id: 4e47ec1c-c488-44a8-a231-e9a4b4d90487
+status: experimental
+description: A DNS TXT answer of 200 characters or more, a common carrier for C2 commands or exfiltrated data. DKIM keys are long TXT answers on almost every mail domain, so they are excluded.
+references:
+  - https://attack.mitre.org/techniques/T1071/004/
+author: Daniel Draghici
+date: 2026-11-19
+tags:
+  - attack.command-and-control
+  - attack.t1071.004
+logsource:
+  product: suricata
+  service: dns
+detection:
+  answer:
+    dns.type: answer
+    dns.answers.type: TXT
+  long_data:
+    dns.answers.data|re: '.{200,}'
+  dkim:
+    dns.question.name|contains: '._domainkey.'
+  condition: answer and long_data and not dkim
+falsepositives:
+  - Long SPF or domain-verification TXT records on mail and SaaS domains
+level: medium

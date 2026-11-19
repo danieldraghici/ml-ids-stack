@@ -1,0 +1,44 @@
+{
+  "index_patterns": ["suricata-*"],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "dynamic_templates": [
+      { "strings_as_keyword": { "match_mapping_type": "string", "mapping": { "type": "keyword", "ignore_above": 1024 } } }
+    ],
+    "properties": {
+      "@timestamp": { "type": "date" },
+      "event": { "properties": {
+        "kind": { "type": "keyword" }, "module": { "type": "keyword" }, "dataset": { "type": "keyword" },
+        "category": { "type": "keyword" }, "severity": { "type": "integer" },
+        "start": { "type": "date" }, "end": { "type": "date" }
+      } },
+      "source": { "properties": { "ip": { "type": "ip" }, "port": { "type": "integer" },
+                                  "bytes": { "type": "long" }, "packets": { "type": "long" } } },
+      "destination": { "properties": { "ip": { "type": "ip" }, "port": { "type": "integer" },
+                                       "bytes": { "type": "long" }, "packets": { "type": "long" } } },
+      "related": { "properties": { "ip": { "type": "ip" } } },
+      "network": { "properties": { "transport": { "type": "keyword" }, "protocol": { "type": "keyword" } } },
+      "rule": { "properties": { "id": { "type": "keyword" }, "name": { "type": "keyword" }, "category": { "type": "keyword" } } },
+      "threat": { "properties": { "framework": { "type": "keyword" },
+                                  "technique": { "properties": { "id": { "type": "keyword" } } } } },
+      "dns": { "properties": {
+        "type": { "type": "keyword" }, "id": { "type": "integer" }, "response_code": { "type": "keyword" },
+        "question": { "properties": { "name": { "type": "keyword" }, "type": { "type": "keyword" } } },
+        "answers": { "properties": {
+          "name": { "type": "keyword" }, "type": { "type": "keyword" }, "ttl": { "type": "long" },
+          "data": { "type": "keyword", "ignore_above": 8191 }
+        } }
+      } },
+      "ssh": { "properties": {
+        "client": { "properties": { "software_version": { "type": "keyword" }, "proto_version": { "type": "keyword" } } },
+        "server": { "properties": { "software_version": { "type": "keyword" } } }
+      } },
+      "icmp": { "properties": { "type": { "type": "integer" } } },
+      "labels": { "properties": { "mode": { "type": "keyword" }, "capture": { "type": "keyword" } } },
+      "message": { "type": "text" }
+    }
+  }
+}

@@ -64,6 +64,33 @@ def test_no_pcap_is_a_usage_error():
     assert run.main([]) == run.EXIT_USAGE
 
 
+# --- deterministic replay (R-06) ---------------------------------------------------
+
+def test_replay_batches_by_size_not_by_the_clock():
+    args = run.live_args(CONF, "/models/x.joblib", "/pcaps/a.pcap", "/out")
+    assert float(args[args.index("--batch-seconds") + 1]) >= 3600
+
+
+def test_replay_uses_a_single_nfstream_meter(monkeypatch):
+    import sys
+    import types
+
+    seen = {}
+
+    class FakeStreamer:
+        def __init__(self, *args, **kwargs):
+            seen.update(kwargs)
+
+    fake = types.ModuleType("nfstream")
+    fake.NFStreamer = FakeStreamer
+    monkeypatch.setitem(sys.modules, "nfstream", fake)
+    run.single_meter_replay()
+    run.single_meter_replay()  # idempotent: never wraps twice
+    sys.modules["nfstream"].NFStreamer(source="x.pcap", n_meters=0)
+    assert seen["n_meters"] == 1
+    assert sys.modules["nfstream"].NFStreamer.__mro__[1] is FakeStreamer
+
+
 # --- image and pins (R-04) -------------------------------------------------------
 
 def test_requirements_pinned_exactly():
@@ -87,7 +114,7 @@ def test_replay_runs_hardened():
     hardened = make[make.index("HARDENED :="):make.index("replay: detector")]
     for flag in ("--read-only", "--network none", "--cap-drop ALL", "no-new-privileges", "--user"):
         assert flag in hardened, flag
-    block = make[make.index("replay: detector"):make.index("# R-06 detection gate")]
+    block = make[make.index("replay: detector"):make.index("\nsuricata:")]
     assert block.count("$(HARDENED)") == 2 and "docker run" not in block
     for mount in ("/models:ro", "/pcaps:ro"):
         assert mount in block, mount

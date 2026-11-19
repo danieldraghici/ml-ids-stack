@@ -1,0 +1,65 @@
+%YAML 1.1
+---
+# Suricata 8 in pcap replay mode (R-09): the second sensor next to the ML-IDS. It reads one
+# capture with -r, runs only the rules in suricata/rules/, and writes EVE JSON lines to /out,
+# one file per capture (make suricata sets the file name). The container has no network, no
+# capabilities and a read-only filesystem, like the detector (Makefile, ci/compose.yaml).
+
+vars:
+  address-groups:
+    HOME_NET: "[192.168.0.0/16,10.0.0.0/8,172.16.0.0/12]"
+    EXTERNAL_NET: "any"
+  port-groups:
+    SSH_PORTS: "22"
+    HTTP_PORTS: "80"
+
+default-log-dir: /out
+default-rule-path: /rules
+rule-files:
+  - local.rules
+
+classification-file: /rules/classification.config
+reference-config-file: /rules/reference.config
+threshold-file: /rules/threshold.config
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert:
+            metadata: yes
+        - dns
+        - ssh
+        - flow
+
+  - stats:
+      enabled: no
+
+logging:
+  default-log-level: notice
+  outputs:
+    - console:
+        enabled: yes
+
+app-layer:
+  protocols:
+    ssh:
+      enabled: yes
+    dns:
+      tcp:
+        enabled: yes
+      udp:
+        enabled: yes
+    http:
+      enabled: yes
+    tls:
+      enabled: yes
+
+# Replay reads timestamps from the capture, so thresholds count in capture time.
+pcap-file:
+  checksum-checks: no
+
+unix-command:
+  enabled: no

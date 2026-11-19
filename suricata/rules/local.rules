@@ -1,0 +1,12 @@
+# Local Suricata rules for what the ML-IDS misses (R-09). Each counts behaviour per source,
+# which a single-event Sigma rule cannot, and carries its ATT&CK technique in the metadata.
+# Every rule has a positive fixture and a near miss in tests/fixtures/pcaps/, and the detection
+# gate checks both (tests/regression/test_suricata_gate.py).
+
+# T1018 Remote System Discovery. A sweep sends echo requests to many hosts in a few seconds; an
+# admin pinging one host sends one per second, which stays under 20 in 10 s.
+alert icmp $HOME_NET any -> $HOME_NET any (msg:"ML-IDS-STACK ICMP host discovery sweep"; itype:8; threshold: type both, track by_src, count 20, seconds 10; classtype:network-scan; metadata:mitre_technique_id T1018, mitre_tactic discovery; sid:9000001; rev:1;)
+
+# T1110.001 Password Guessing. A guessing tool opens a new SSH session for every few passwords;
+# an admin opens a handful an hour. 10 new sessions from one source within 60 s fire once.
+alert tcp $HOME_NET any -> $HOME_NET $SSH_PORTS (msg:"ML-IDS-STACK SSH password guessing, many new sessions from one source"; flow:to_server; flags:S,12; threshold: type both, track by_src, count 10, seconds 60; classtype:attempted-admin; metadata:mitre_technique_id T1110.001, mitre_tactic credential-access; sid:9000002; rev:1;)

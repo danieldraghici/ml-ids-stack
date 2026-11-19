@@ -52,33 +52,36 @@ Dependabot proposes updates to actions, images, compose files, Python pins, dev 
 
 ## 4. Architecture and components
 
-State after the ML-IDS alerts reach OpenSearch (F5; Suricata, Sigma, MISP and monitoring join the same picture later):
+State after F5 (MISP and monitoring join the same picture in F6 and F7):
 
 ```
                        make replay PCAP=...                       make up / make down
   tests/fixtures/pcaps ───────────────────▶ detector container      compose.yaml (127.0.0.1 only)
-  (lab pcaps < 5 MB)                        read-only, no network     ┌──────────────────────────────┐
-                                            no capabilities           │ opensearch 2.19.6  :9200     │
-  models/ (git-ignored) ──── SHA-256 ─────▶ run.py: verify model      │   mlids-alert-*              │
-  detector/thresholds.json  checked          and feature contract,    │   mlids-episode-*            │
-                                             then live.py --replay    │ opensearch-dashboards        │
-                                                 │                    │   (no published port)        │
-                                                 ▼                    │ frontdoor nginx 1.30.7 :8443 │
-                                     out/<name>.alerts.jsonl          │   TLS 1.2/1.3, lab CA cert   │
-                                     episodes.py ▼                    │ logstash (no published port) │
-                                     out/<name>.episodes.jsonl ──────▶│   pipelines/mlids.conf → ECS │
-                                       (out/ mounted read-only)       └──────────────────────────────┘
-                                                                        ▲ admin password: SOPS/age
-                                                                        │ ciphertext in secrets/,
-                                                                        │ .env.secrets only while up
+  (lab and synthetic                        read-only, no network     ┌───────────────────────────────┐
+   pcaps < 5 MB)                            no capabilities           │ opensearch 2.19.6  :9200      │
+         │          models/ ── SHA-256 ───▶ run.py: verify model      │   mlids-alert-*               │
+         │          thresholds.json         and feature contract,     │   mlids-episode-*             │
+         │                                  then live.py --replay     │   suricata-*                  │
+         │                                       ▼                    │ opensearch-dashboards         │
+         │                           out/<name>.alerts.jsonl          │   (no published port)         │
+         │                           episodes.py ▼                    │ frontdoor nginx 1.30.7 :8443  │
+         │                           out/<name>.episodes.jsonl ──────▶│ logstash (no published port)  │
+         │  make suricata PCAP=...                                    │   mlids.conf    → ECS         │
+         └──────────────▶ Suricata 8.0.7 (same hardening)            │   suricata.conf → ECS         │
+                           local.rules ─▶ out/<name>.eve.json ───────▶│  (out/ mounted read-only)     │
+                                                                      └───────────────────────────────┘
+  rules/sigma/*.yml ─ sigma convert ─▶ rules/opensearch/*.json        ▲ admin password: SOPS/age,
+  (tested on Suricata's ECS events, positive and near miss)           │ .env.secrets only while up
 ```
 
 - **Stack** (`compose.yaml`): single-node OpenSearch and Dashboards, pinned by digest, host ports only on 127.0.0.1. Dashboards is reachable only through the nginx front door, which serves a 30-day certificate from an offline lab root and intermediate CA (`scripts/pki.sh`). `make up` and `make down` reach the same state every time (`docs/evidence/R-02-stack-up-down-twice.txt`).
 - **Secrets**: the OpenSearch admin password lives in git only as SOPS ciphertext for the student's age key; `make secrets` writes an owner-only `.env.secrets` that `make down` deletes.
 - **Detector** (`detector/`): the 16 inference files from the dissertation, unchanged, with their SHA-256 in `detector/SOURCES.tsv`; the model's SHA-256 is checked before it is unpickled; model, profile and threshold come only from `detector/thresholds.json`. Model details: `docs/model-card.md`.
-- **Fixtures** (`tests/fixtures/pcaps/`): four lab captures under 5 MB (port scan, slowloris, Hulk, benign) with their sources, cut commands and the detector baseline.
+- **Fixtures** (`tests/fixtures/pcaps/`): four lab captures under 5 MB (port scan, slowloris, Hulk, benign) with their sources, cut commands and the detector baseline, and four synthetic captures for techniques the lab lacks (ping sweep, SSH password guessing, DNS TXT tunnelling, and near misses for each), generated with scapy from fixed seeds so every run writes the same bytes.
+- **Suricata** (`suricata/`, R-09): Suricata 8.0.7 replays the same captures with the same hardening as the detector and two local rules that count behaviour per source (ICMP sweep, many new SSH sessions). It runs only the rules in this repository; ET Open is not loaded, so payload attacks remain a gap.
+- **Sigma** (`rules/sigma/`, R-09): rules on Suricata's ECS events (a long DNS TXT answer; an SSH client of a guessing tool), converted to OpenSearch queries in `rules/opensearch/` and tested on real EVE lines run through the real pipeline, each with a positive sample and a near miss. Coverage before and after: `docs/evidence/R-09-coverage.md`.
 - **Episodes** (`detector/episodes.py`): the flow alerts grouped by attacking source, with a 120 s gap and the predicted families counted inside, so each fixture attack is one line for the analyst instead of the 2 to 5 that the dissertation's per-family tracker produced (R-08). It streams, so a live feed would group the same way.
-- **Alert path** (`logstash/`, `pipelines/`): Logstash OSS 8.19, pinned and built with the OpenSearch output plugin, tails the detector's output folder and maps alerts and episodes to ECS (`source.ip`, `destination.ip` and `.port`, `rule.name`, `event.*`, the model's score and window features under `mlids.*`). `@timestamp` is the flow's own time; the document id is a fingerprint, so a repeated replay overwrites instead of duplicating. A record that is not JSON or lacks a field the rules read goes to `mlids-error`. The same filters run in the pipeline tests and in the detection gate. `make dashboards` imports the index patterns and two saved searches.
+- **Alert path** (`logstash/`, `pipelines/`): Logstash OSS 8.19, pinned and built with the OpenSearch output plugin, tails the detector's output folder and maps alerts and episodes to ECS (`source.ip`, `destination.ip` and `.port`, `rule.name`, `event.*`, the model's score and window features under `mlids.*`). `@timestamp` is the flow's own time; the document id is a fingerprint, so a repeated replay overwrites instead of duplicating. A record that is not JSON or lacks a field the rules read goes to `mlids-error`. The same filters run in the pipeline tests and in the detection gate. Suricata's EVE output takes the same path through `pipelines/suricata.conf` into `suricata-*`. `make dashboards` imports the index patterns and four saved searches, one of them every sensor's results for one source.
 
 ## 5. AI workflow
 

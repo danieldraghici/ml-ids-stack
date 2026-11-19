@@ -8,9 +8,11 @@ A pull request fails if, on any fixture:
 - detection on an attack fixture drops below 99% of its flows,
 - the benign fixture raises more alerts than the baseline,
 - an alert names the victim as its source,
-- the flow count moves (extractor or fixture changed: update the baseline in a reviewed PR),
+- the flow count or the alert count moves (replay is deterministic, so any change is real:
+  update the baseline in a reviewed PR),
 - the replay did not use the model and threshold pinned in detector/thresholds.json,
-- an attack fixture is not exactly one episode with the attacker as its source (R-08).
+- an attack fixture is not exactly one episode with the attacker as its source (R-08),
+- a gap fixture (a technique the ML-IDS is not expected to catch) gets fewer alerts than recorded.
 """
 import json
 import os
@@ -58,6 +60,12 @@ def test_flow_count_unchanged(name):
 
 
 @pytest.mark.parametrize("name", FIXTURES)
+def test_alert_count_matches_the_baseline(name):
+    got, recorded = status(name)["n_alerts"], BASE["fixtures"][name]["alerts"]
+    assert got == recorded, f"{name}: {got} alerts, the baseline records {recorded}"
+
+
+@pytest.mark.parametrize("name", FIXTURES)
 def test_alert_file_matches_the_status(name):
     # live.py appends to the alert file, so a stale file from an earlier run shows here
     assert len(alerts(name)) == status(name)["n_alerts"]
@@ -101,3 +109,9 @@ def test_each_attack_is_one_episode_from_the_attacker(name):
 def test_benign_episodes_not_above_baseline(name):
     got, allowed = len(episodes(name)), BASE["fixtures"][name]["episodes"]
     assert got <= allowed, f"{name}: {got} episodes on benign traffic, baseline {allowed}"
+
+
+@pytest.mark.parametrize("name", [n for n in FIXTURES if BASE["fixtures"][n]["kind"] == "gap"])
+def test_gap_fixture_alerts_do_not_fall(name):
+    got, recorded = status(name)["n_alerts"], BASE["fixtures"][name]["alerts"]
+    assert got >= recorded, f"{name}: {got} alerts, {recorded} recorded"

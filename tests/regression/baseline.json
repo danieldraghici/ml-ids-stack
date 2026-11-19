@@ -1,5 +1,5 @@
 {
-  "_about": "Detector baseline on the lab fixtures (R-06), recorded on 2026-11-17 with the model and threshold in detector/thresholds.json (docs/evidence/R-06-replay-baseline.txt). Protected by the guard hook: only the student changes it, in a reviewed pull request. Episodes (detector/episodes.py, F5): one per attack fixture, keyed by the attacker.",
+  "_about": "Detector and Suricata baseline on the fixtures (R-06, R-09). Lab captures recorded 2026-11-17 (docs/evidence/R-06-replay-baseline.txt) and slowloris again on 2026-11-19, once replay became deterministic (one nfstream meter, size-only batches: 1,074 alerts instead of a value between 1,064 and 1,070); synthetic captures (tests/fixtures/pcaps/make_synthetic.py) recorded 2026-11-19. Episodes from detector/episodes.py. suricata: alerts per local rule sid; sigma: events per rule in rules/sigma/. alerts: the exact count every replay must reproduce; kind attack: detection >= min_detection, one episode from the attacker; gap: the ML-IDS is not expected to alert, its count may not fall; benign: alerts and episodes may not rise. Protected by the guard hook: only the student changes it, in a reviewed pull request.",
   "min_detection": 0.99,
   "fixtures": {
     "portscan.pcap": {
@@ -8,15 +8,19 @@
       "victim": "192.168.10.11",
       "flows": 4100,
       "alerts": 4100,
-      "episodes": 1
+      "episodes": 1,
+      "suricata": {},
+      "sigma": {}
     },
     "slowloris.pcap": {
       "kind": "attack",
       "attacker": "192.168.20.11",
       "victim": "192.168.10.11",
       "flows": 1076,
-      "alerts": 1067,
-      "episodes": 1
+      "alerts": 1074,
+      "episodes": 1,
+      "suricata": {},
+      "sigma": {}
     },
     "hulk1_head.pcap": {
       "kind": "attack",
@@ -24,13 +28,65 @@
       "victim": "192.168.10.11",
       "flows": 601,
       "alerts": 601,
-      "episodes": 1
+      "episodes": 1,
+      "suricata": {},
+      "sigma": {}
     },
     "benign_head.pcap": {
       "kind": "benign",
       "flows": 43,
       "alerts": 1,
-      "episodes": 1
+      "episodes": 1,
+      "suricata": {},
+      "sigma": {}
+    },
+    "icmp_sweep.pcap": {
+      "kind": "attack",
+      "synthetic": true,
+      "attacker": "192.168.20.11",
+      "victim": "192.168.10.11",
+      "flows": 254,
+      "alerts": 254,
+      "episodes": 1,
+      "suricata": {
+        "9000001": 1
+      },
+      "sigma": {}
+    },
+    "ssh_bruteforce.pcap": {
+      "kind": "attack",
+      "synthetic": true,
+      "attacker": "192.168.20.11",
+      "victim": "192.168.10.11",
+      "flows": 60,
+      "alerts": 60,
+      "episodes": 1,
+      "suricata": {
+        "9000002": 2
+      },
+      "sigma": {
+        "ssh_guessing_tool_client.yml": 60
+      }
+    },
+    "dns_txt.pcap": {
+      "kind": "gap",
+      "synthetic": true,
+      "flows": 1,
+      "alerts": 0,
+      "episodes": 0,
+      "suricata": {},
+      "sigma": {
+        "dns_long_txt.yml": 1
+      }
+    },
+    "near_misses.pcap": {
+      "kind": "benign",
+      "synthetic": true,
+      "flows": 6,
+      "alerts": 1,
+      "episodes": 1,
+      "suricata": {},
+      "sigma": {}
     }
   }
 }
