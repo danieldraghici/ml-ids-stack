@@ -1,0 +1,15 @@
+# R-04 evidence: fork pull request settings, read back on 2026-11-19T10:35:38Z
+# GET repos/danieldraghici/ml-ids-stack/actions/permissions/fork-pr-workflows-private-repos
+{
+  "run_workflows_from_fork_pull_requests": false,
+  "send_write_tokens_to_workflows": false,
+  "send_secrets_and_variables": false,
+  "require_approval_for_fork_pr_workflows": false
+}
+# GET .../actions/permissions/fork-pr-contributor-approval answers 422:
+# "Fork PR approval is not allowed for private repositories." Runs from forks are off instead.
+# GET repos/danieldraghici/ml-ids-stack/immutable-releases
+{
+  "enabled": true,
+  "enforced_by_owner": false
+}
