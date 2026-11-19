@@ -1,0 +1,78 @@
+# Release on a v* tag (R-04, R-07). The images are built, scanned and gated again here, so
+# nothing unscanned ships; then both images go to GHCR, each with an SPDX SBOM, and Cosign
+# signs the image digests and the model keyless. The signature binds this repository and this
+# workflow file through the run's OIDC token, and is recorded in the public Rekor log
+# (decision in RISK-REGISTER.md, R-04). Release notes are generated from the merged PRs.
+# The student pushes the tag: the agent cannot create tags or releases (guard hook), and
+# ruleset release-tags stops a v* tag from being moved or deleted.
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the release and upload its assets
+      packages: write   # push the images to GHCR
+      id-token: write   # OIDC identity for Cosign keyless signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: pip install --require-hashes -r requirements-dev.txt
+
+      - name: Model from release model-v1, SHA-256 checked
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p models
+          gh release download model-v1 --repo "$GITHUB_REPOSITORY" --dir models \
+            --pattern "$(jq -r .model detector/thresholds.json)"
+          make model-check
+
+      - name: Scan and gate the images that will ship
+        run: make scan gate
+
+      - name: SBOMs (Syft, SPDX JSON)
+        run: make sbom
+
+      - name: Push both images to GHCR and record their digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          registry="ghcr.io/${GITHUB_REPOSITORY,,}"
+          : > out/images.txt
+          for name in detector frontdoor; do
+            docker tag "ml-ids-stack/$name:local" "$registry/$name:$TAG"
+            docker push -q "$registry/$name:$TAG"
+            docker inspect --format '{{index .RepoDigests 0}}' "$registry/$name:$TAG" >> out/images.txt
+          done
+          cat out/images.txt
+
+      - name: Sign the image digests and the model (Cosign keyless)
+        run: |
+          cosign() { docker compose -f ci/compose.yaml run --rm -T --user "$(id -u):$(id -g)" cosign "$@"; }
+          for ref in $(cat out/images.txt); do cosign sign --yes "$ref"; done
+          model=$(jq -r .model detector/thresholds.json)
+          cosign sign-blob --yes --bundle "/out/$model.sigstore.json" "models/$model"
+
+      - name: Release with generated notes, SBOMs, the model and its signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          model=$(jq -r .model detector/thresholds.json)
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
+            out/images.txt out/detector.sbom.spdx.json out/frontdoor.sbom.spdx.json \
+            "models/$model" "out/$model.sigstore.json"

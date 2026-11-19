@@ -12,7 +12,8 @@ Two credentials, two roles:
 - The student is the author of the work and must be able to defend every part of it, so commits and pull requests carry the student's name; the agent's share shows in the co-author trailer.
 - The student's own `gh` login reaches every repository of the account and is admin on this one. The agent never holds it. Its token is limited to this repository and has no Administration permission, so it cannot change rulesets, settings or collaborators (R-03).
 - An author cannot approve their own pull request, so nobody can give the approval that ruleset `main-review` asks for. The student merges with the pull-request-only bypass, which never skips the checks of `main-checks`; that merge is the human approval. From F7 the App reviewer comments on every pull request and sets the required check `ai-review`. It never approves, so an automated review cannot merge anything (R-01, R-05).
-- The agent's token is issued by the student's account, so GitHub cannot tell the agent from the student. The guard hook refuses every merge and approve path on the agent's side, and `docs/evidence/R-01-agent-merge-refused.txt` records what GitHub answers when the agent's token tries to merge an unapproved pull request (R-01).
+- The agent's token is issued by the student's account, so GitHub cannot tell the agent from the student. The guard hook refuses every merge and approve path on the agent's side. `docs/evidence/R-01-agent-token-merge-test.txt` records the test: GitHub accepted the merge of an unapproved pull request with the agent's token, through the student's bypass, so the hook is what keeps the merge with the student (R-01).
+- Releases and tags are the student's too. The hook refuses `git tag`, tag pushes and every `gh release` or API call that creates or changes a release, and ruleset `release-tags` stops anyone from moving or deleting a `v*` or `model-*` tag (R-04, R-07).
 - A GitHub connector or MCP server signed in with the student's account would carry the full login, so it does not replace the scoped token.
 
 ## 1. The agent's fine-grained token (student, every 30 days)
@@ -65,6 +66,6 @@ The App `ml-ids-stack-agent` is installed on this repository only. In F7 its per
 - Agent token: revoke it on the Fine-grained tokens page, generate a new one with the same settings, replace the file. It expires by itself after 30 days.
 - App key: delete it on the App page under Private keys, generate a new one, replace the Actions secret (SECURITY.md).
 
-## Open point for F3
+## Docker stays outside the agent container
 
-Running the stack needs Docker. Mounting the host Docker socket into the agent container would hand it root on the host, which undoes this isolation. Decide in F3: the student runs `make up` outside the container, or the container gets a rootless Docker of its own.
+Running the stack, the replay and the CI tools needs Docker. Mounting the host Docker socket into the agent container would hand it root on the host, which undoes this isolation, so the container has no Docker. The student runs `make up`, `make gate`, `make scan` and `make lint-ci` in WSL, outside the container; in CI the same targets run on the GitHub runner.

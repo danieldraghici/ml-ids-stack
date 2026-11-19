@@ -159,6 +159,23 @@ BASH_BLOCKED = [
     ("mv .claude/hooks/guard.py /tmp/", "R-05"),
     ("python3 -c \"open('detector/thresholds.json','w').write('{}')\"", "R-06"),
     ("git checkout -- tests/regression/fixtures.json", "R-06"),
+    # releases and tags are the student's (R-04, R-07)
+    ("git tag v0.4.0", "R-04"),
+    ("git tag -a v0.4.0 -m 'release'", "R-04"),
+    ("git tag -f v0.4.0 HEAD", "R-04"),
+    ("git tag -d v0.4.0", "R-04"),
+    ("git push origin v0.4.0", "R-04"),
+    ("git push origin refs/tags/v0.4.0", "R-04"),
+    ("git push origin HEAD:refs/tags/model-v2", "R-04"),
+    ("git push --tags", "R-04"),
+    ("git push --follow-tags origin feat/x", "R-04"),
+    ("gh release create v0.4.0 --generate-notes", "R-04"),
+    ("gh release upload model-v1 models/other.joblib --clobber", "R-07"),
+    ("gh release delete model-v1 --yes", "R-04"),
+    ("gh release edit v0.4.0 --draft", "R-04"),
+    ("gh api -X POST repos/o/r/releases -f tag_name=v9", "R-04"),
+    ("gh api repos/o/r/git/refs -f ref=refs/tags/v9 -f sha=abc", "R-04"),
+    ("gh api -X PATCH repos/o/r/git/refs/tags/v0.4.0 -f sha=abc", "R-04"),
 ]
 
 BASH_ALLOWED = [
@@ -190,6 +207,16 @@ BASH_ALLOWED = [
     "echo done > /tmp/out.txt",
     "docker compose logs 2>&1 | tail -5",
     "rm -rf /tmp/build",
+    "git tag",
+    "git tag -l 'v*'",
+    "git tag --contains HEAD",
+    "git push -u origin ci/supply-chain",
+    "gh release list",
+    "gh release view v0.4.0",
+    "gh release download model-v1 --dir models --pattern '*.joblib'",
+    "gh api repos/o/r/releases",
+    "make gate",
+    "make model-release",
 ]
 
 

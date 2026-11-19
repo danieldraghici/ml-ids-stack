@@ -15,7 +15,11 @@
       "Edit(./tests/regression/**)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
-      "Bash(gh pr merge:*)"
+      "Bash(gh pr merge:*)",
+      "Bash(git push --tags:*)",
+      "Bash(gh release create:*)",
+      "Bash(gh release upload:*)",
+      "Bash(gh release delete:*)"
     ]
   },
   "hooks": {

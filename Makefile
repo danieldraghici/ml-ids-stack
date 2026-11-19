@@ -1,15 +1,32 @@
 # Run from WSL2 Ubuntu (see docs/setup.md). Ports come from .env, the admin password from
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
-.PHONY: lint test secrets pki up down health tls model detector replay
+.PHONY: lint lint-ci test secrets pki up down health tls model model-check model-release \
+        detector frontdoor images scan sbom replay gate
 
 # Where the dissertation's model bundle lives on this machine (never committed, R-07).
 MODEL_SRC ?= /mnt/d/ML_IDS_Disertation/ML_IDS_Disertation/models/nfv3_window_xgb_latest.joblib
+MODEL := $(shell jq -r .model detector/thresholds.json)
+# Release to take the signed model from (make model-release); empty means the latest release.
+MODEL_RELEASE ?=
 PCAP ?=
+FIXTURES := portscan.pcap slowloris.pcap hulk1_head.pcap benign_head.pcap
 
 COMPOSE := docker compose --env-file .env --env-file .env.secrets
+# CI tools as containers pinned by digest (ci/compose.yaml, R-04).
+TOOLS := docker compose -f ci/compose.yaml run --rm -T
+# Fail on HIGH or CRITICAL findings that have a fix; a finding without one is listed, since
+# no rebuild can remove it yet.
+SCAN_FLAGS := --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress
 
 lint:
 	pre-commit run --all-files
+
+# The linters of the CI lint job: shell scripts, Dockerfiles, code patterns, the workflows.
+lint-ci:
+	$(TOOLS) shellcheck scripts/*.sh
+	$(TOOLS) hadolint nginx/Dockerfile detector/Dockerfile
+	$(TOOLS) semgrep scan --config p/ci --error --metrics off
+	$(TOOLS) zizmor --offline .
 
 test:
 	python3 -m pytest -q
@@ -50,17 +67,58 @@ tls:
 model:
 	@mkdir -p models
 	cp "$(MODEL_SRC)" models/
+	@$(MAKE) --no-print-directory model-check
+
+model-check:
 	@python3 -c 'import hashlib,json,sys; c=json.load(open("detector/thresholds.json")); d=hashlib.sha256(open("models/"+c["model"],"rb").read()).hexdigest(); print("model SHA-256", "matches" if d==c["model_sha256"] else "DOES NOT MATCH", "thresholds.json"); sys.exit(d!=c["model_sha256"])'
+
+# The model of a signed release: its Cosign signature must come from this repository's release
+# workflow on a v* tag, checked before the file is kept, then the SHA-256 check (R-07).
+model-release:
+	@mkdir -p models
+	gh release download $(MODEL_RELEASE) --clobber --dir models --pattern "$(MODEL)" --pattern "$(MODEL).sigstore.json"
+	cosign verify-blob --bundle "models/$(MODEL).sigstore.json" \
+	  --certificate-identity-regexp "^https://github.com/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/\.github/workflows/release\.yml@refs/tags/v" \
+	  --certificate-oidc-issuer https://token.actions.githubusercontent.com "models/$(MODEL)" \
+	  || { rm -f "models/$(MODEL)"; exit 1; }
+	@$(MAKE) --no-print-directory model-check
 
 detector:
 	docker build -q -t ml-ids-stack/detector:local detector
+
+frontdoor:
+	docker build -q -t ml-ids-stack/frontdoor:local nginx
+
+# Both images as tarballs in out/images/, the input of the scanner and of the SBOM.
+images: detector frontdoor
+	@mkdir -p out/images
+	docker save -o out/images/detector.tar ml-ids-stack/detector:local
+	docker save -o out/images/frontdoor.tar ml-ids-stack/frontdoor:local
+
+# R-04: Trivy on both images and on the Python dependencies.
+scan: images
+	$(TOOLS) trivy image --input out/images/detector.tar $(SCAN_FLAGS)
+	$(TOOLS) trivy image --input out/images/frontdoor.tar $(SCAN_FLAGS)
+	$(TOOLS) trivy fs --scanners vuln --skip-dirs out $(SCAN_FLAGS) .
+
+# SPDX SBOM of each image (Syft), attached to every release.
+sbom: images
+	$(TOOLS) syft scan docker-archive:out/images/detector.tar -o spdx-json > out/detector.sbom.spdx.json
+	$(TOOLS) syft scan docker-archive:out/images/frontdoor.tar -o spdx-json > out/frontdoor.sbom.spdx.json
 
 # Replay one pcap from tests/fixtures/pcaps: read-only container, no network, no capabilities,
 # unprivileged user, model mounted read-only. Alerts land in out/ (git-ignored).
 replay: detector
 	@test -n "$(PCAP)" || { echo "usage: make replay PCAP=portscan.pcap"; exit 1; }
 	@mkdir -p out
+	@rm -f out/$(basename $(PCAP)).alerts.jsonl out/$(basename $(PCAP)).episodes.json out/$(basename $(PCAP)).status.json
 	docker run --rm --read-only --tmpfs /tmp --network none --cap-drop ALL \
 	  --security-opt no-new-privileges --user "$$(id -u):$$(id -g)" \
 	  -v "$$PWD/models:/models:ro" -v "$$PWD/tests/fixtures/pcaps:/pcaps:ro" -v "$$PWD/out:/out" \
 	  ml-ids-stack/detector:local "/pcaps/$(PCAP)"
+
+# R-06 detection gate: replay every fixture into out/, then compare with
+# tests/regression/baseline.json. The CI job detection-gate runs exactly this.
+gate:
+	@for p in $(FIXTURES); do $(MAKE) --no-print-directory replay PCAP=$$p || exit 1; done
+	REPLAY_OUT=out python3 -m pytest -q tests/regression

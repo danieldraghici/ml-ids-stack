@@ -1,0 +1,10 @@
+{
+  "_about": "Detector baseline on the lab fixtures (R-06), recorded on 2026-11-17 with the model and threshold in detector/thresholds.json (docs/evidence/R-06-replay-baseline.txt). Protected by the guard hook: only the student changes it, in a reviewed pull request.",
+  "min_detection": 0.99,
+  "fixtures": {
+    "portscan.pcap":    {"kind": "attack", "attacker": "192.168.20.11", "victim": "192.168.10.11", "flows": 4100, "alerts": 4100},
+    "slowloris.pcap":   {"kind": "attack", "attacker": "192.168.20.11", "victim": "192.168.10.11", "flows": 1076, "alerts": 1067},
+    "hulk1_head.pcap":  {"kind": "attack", "attacker": "192.168.20.11", "victim": "192.168.10.11", "flows": 601,  "alerts": 601},
+    "benign_head.pcap": {"kind": "benign", "flows": 43, "alerts": 1}
+  }
+}

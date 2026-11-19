@@ -67,10 +67,11 @@ def test_no_pcap_is_a_usage_error():
 # --- image and pins (R-04) -------------------------------------------------------
 
 def test_requirements_pinned_exactly():
-    lines = [l.strip() for l in (DET / "requirements.txt").read_text().splitlines() if l.strip() and not l.startswith("#")]
-    assert lines and all(re.fullmatch(r"[A-Za-z0-9_.\-]+==[0-9][\w.]*", l) for l in lines), lines
-    names = {l.split("==")[0].lower() for l in lines}
+    # Exact pins with hashes are checked for every requirements file in tests/test_pinning.py.
+    text = (DET / "requirements.txt").read_text()
+    names = {m.lower() for m in re.findall(r"^([A-Za-z0-9_.\-]+)==", text, flags=re.M)}
     assert "xgboost-cpu" in names and "xgboost" not in names
+    assert "--require-hashes" in (DET / "Dockerfile").read_text()
 
 
 def test_dockerfile_pinned_and_unprivileged():

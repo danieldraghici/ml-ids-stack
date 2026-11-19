@@ -25,9 +25,34 @@ Each row names the asset, the technique (ATT&CK or ATLAS), likelihood and impact
 
 Route 2 of the syllabus: a personal private repository with GitHub Pro from GitHub Education. Rulesets `main-checks` (pull request, required checks, no force push or deletion, no bypass) and `main-review` (one approving review) protect `main`. The student authors every commit and pull request, with the agent as co-author when it helped. The agent works with a fine-grained token limited to this repository, and a separate GitHub App reviews pull requests from F7. It comments and sets a required check but never approves, so every merge stays the student's decision. Details: `docs/setup.md`, `docs/credentials.md`.
 
+The Git CLI push risks named in Session 1 each have a stated control:
+
+| Push risk | Control | Row |
+|---|---|---|
+| Secret leakage | gitleaks pre-commit hook with MISP and Shodan rules, gitleaks on the full history in the required check `lint`, SOPS ciphertext only, the hook keeps the agent away from keys | R-02 |
+| Force-push history rewrite | ruleset `main-checks` (no force push, no deletion, no bypass), ruleset `release-tags` (no moved or deleted release tag), the hook refuses `--force` and pushes to `main` | R-01, R-04 |
+| Over-scoped credentials | the agent's fine-grained token for this repository only, without administration, 30 days; read-only workflow token, widened per job | R-03 |
+
+### Pipeline: every job against its risk
+
+Every job runs on every pull request and is a required check on `main`. The tools run as containers pinned by digest from `ci/compose.yaml` through the same Makefile targets the student runs in WSL; the only actions used are `checkout` and `setup-python`, pinned to commit SHAs.
+
+| Job / step | What it blocks | Row |
+|---|---|---|
+| `lint` / pre-commit, gitleaks on the full history | A key or token in any commit of the branch; malformed YAML, JSON, TOML | R-02 |
+| `lint` / ShellCheck, Hadolint | Broken shell scripts (`scripts/pki.sh`) and unsafe Dockerfile patterns | R-04 |
+| `lint` / Semgrep | Known insecure code patterns (`p/ci` rules) | R-04 |
+| `lint` / zizmor | Unpinned actions, credentials left by checkout, template injection, risky triggers, a Dependabot file without cooldown | R-03, R-04 |
+| `test` | A broken guard hook rule, a floating image, action, revision or package, a model gate or feature contract that no longer refuses, a register row claiming evidence it lacks | R-01, R-04, R-05, R-07 |
+| `scan` / Trivy | Either image, or a Python dependency, with a HIGH or CRITICAL vulnerability that has a fix | R-04 |
+| `detection-gate` | Detection below 99% on an attack fixture, more benign alerts than the baseline, an alert naming the victim as source, a changed flow count, a replay without the pinned model and threshold | R-06, R-07 |
+| `release` (tag `v*`) / Syft, Cosign | An image or model reaching users without an SBOM or a keyless signature bound to this repository's release workflow | R-04, R-07 |
+
+Dependabot proposes updates to actions, images, compose files, Python pins, dev container features and pre-commit revisions, each held back 14 days by its cooldown, through the same checks. Workflows from forks do not run on this private repository, and Actions may not create or approve pull requests. The signing decision: keyless, accepting that the public Rekor log records the repository name and the release workflow path, so that no long-lived signing key exists to steal (R-04).
+
 ## 4. Architecture and components
 
-State after F3 (later phases add Logstash, Suricata, MISP and monitoring to the same picture):
+State after F4 (later phases add Logstash, Suricata, MISP and monitoring to the same picture):
 
 ```
                        make replay PCAP=...                       make up / make down
@@ -36,7 +61,7 @@ State after F3 (later phases add Logstash, Suricata, MISP and monitoring to the 
                                             no capabilities           │ opensearch 2.19.6  :9200     │
   models/ (git-ignored) ──── SHA-256 ─────▶ run.py: verify model,     │ opensearch-dashboards        │
   detector/thresholds.json  checked          then live.py --replay    │   (no published port)        │
-                                                 │                    │ frontdoor nginx 1.30.5 :8443 │
+                                                 │                    │ frontdoor nginx 1.30.7 :8443 │
                                                  ▼                    │   TLS 1.2/1.3, lab CA cert   │
                                      out/<name>.alerts.jsonl          └──────────────────────────────┘
                                      out/<name>.episodes.json           ▲ admin password: SOPS/age
@@ -51,7 +76,16 @@ State after F3 (later phases add Logstash, Suricata, MISP and monitoring to the 
 
 ## 5. AI workflow
 
-*To complete in F2*: `CLAUDE.md` and its imported memory, the skills, the `reviewer` sub-agent and model routing, the guard hook as the enforced safety rule, the memory-poisoning note (`docs/memory-poisoning.md`), and the automated pull-request review (F7).
+The configuration below is in the repository and is reviewed like code (CODEOWNERS, R-05).
+
+- **`CLAUDE.md`**: role, voice, stack conventions, banned patterns and default commands; it imports the memory index.
+- **Memory** (`memory/`, indexed by `memory/MEMORY.md`): one correction per file, saved in the pull request where it happened (`docs/evidence/R-05-memory-correction-persists.png`).
+- **Skill** (`.claude/skills/check/SKILL.md`): lint and test, failures grouped by file, the smallest fix proposed, never on a protected path.
+- **Sub-agent and model routing** (`.claude/agents/reviewer.md`): a read-only reviewer on a cheaper model checks each branch before its pull request and marks findings blocking or note.
+- **Enforced safety rules** (`.claude/settings.json`, `.claude/hooks/guard.py`, tested in `tests/test_hook.py`): deny rules and a PreToolUse hook refuse secret reads, skipped checks, force pushes, pushes to `main`, merges, approvals, tags, releases and edits to the threshold, the model, the regression tests and the hook itself.
+- **Memory poisoning**: `docs/memory-poisoning.md` and the evidence `docs/evidence/R-05-poisoned-memory-*.png`.
+- **Isolation**: the dev container and the agent's scoped token (`docs/credentials.md`, R-03).
+- **Automated pull-request review** (F7): a GitHub App comments and sets the required check `ai-review`; it never approves.
 
 ## 6. Threat intelligence enrichment
 

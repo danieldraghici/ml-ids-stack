@@ -5,6 +5,8 @@ R-07: the model file is a pickle, and loading a tampered one runs its code. Its 
 checked against thresholds.json before anything unpickles it; a mismatch stops the run.
 R-06: the model is named in thresholds.json and the decision threshold comes from there,
 the only place it is set. Nothing is picked by file date.
+R-07, R-09: once the hash matches, the bundle's feature list is checked. A model that reads
+an address, a raw port or the TTL learned the testbed, not the attack, and is refused.
 
 Usage (inside the container): run.py /pcaps/<file>.pcap
 Writes <name>.alerts.jsonl, <name>.episodes.json and <name>.status.json to $OUT_DIR.
@@ -12,13 +14,20 @@ Writes <name>.alerts.jsonl, <name>.episodes.json and <name>.status.json to $OUT_
 import hashlib
 import json
 import os
+import re
 import runpy
 import sys
 
 APP = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.environ.get("MODEL_DIR", "/models")
 OUT_DIR = os.environ.get("OUT_DIR", "/out")
-EXIT_USAGE, EXIT_MODEL = 2, 3
+EXIT_USAGE, EXIT_MODEL, EXIT_FEATURES = 2, 3, 4
+
+# Feature contract (R-07, R-09). Addresses, raw ports and TTL are window keys, never inputs.
+# Service classes (SVC_*) and window counts such as distinct destination ports stay allowed.
+FORBIDDEN_FEATURE = re.compile(
+    r"ADDR|(^|_)IP$|(^|_)(SRC|DST)_IP(_|$)|TTL|(^|_)(L4_)?(SRC|DST)_PORT$|^[SD]PORT$",
+    re.IGNORECASE)
 
 
 def load_config(path=os.path.join(APP, "thresholds.json")):
@@ -49,6 +58,25 @@ def verify_model(conf, model_dir=MODEL_DIR):
     return path
 
 
+def forbidden_features(names):
+    """Feature names that break the contract: an address, a raw port or the TTL."""
+    return [n for n in names if FORBIDDEN_FEATURE.search(str(n))]
+
+
+def check_features(model):
+    """True if the bundle's feature list keeps the contract. Call only after verify_model."""
+    sys.path.insert(0, os.path.join(APP, "src"))
+    from core.bundle import load_bundle  # the dissertation loader, so pickled classes resolve
+    names = list(load_bundle(model).get("feature_names") or [])
+    bad = forbidden_features(names)
+    if not names or bad:
+        print(f"detector: REFUSED {model}: feature list {'is empty' if not names else 'holds ' + ', '.join(bad)}",
+              file=sys.stderr)
+        return False
+    print(f"detector: feature contract kept, {len(names)} features")
+    return True
+
+
 def live_args(conf, model, pcap, out_dir=OUT_DIR):
     name = os.path.splitext(os.path.basename(pcap))[0]
     return ["live.py", "--profile", conf["profile"], "--model", model, "--replay", pcap,
@@ -67,8 +95,9 @@ def main(argv):
     model = verify_model(conf)
     if model is None:
         return EXIT_MODEL
+    if not check_features(model):
+        return EXIT_FEATURES
     sys.argv = live_args(conf, model, argv[0])
-    sys.path.insert(0, os.path.join(APP, "src"))
     runpy.run_path(os.path.join(APP, "src", "live.py"), run_name="__main__")
     return 0
 

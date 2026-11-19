@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse guard for Claude Code (R-01, R-02, R-05, R-06).
+"""PreToolUse guard for Claude Code (R-01, R-02, R-04, R-05, R-06).
 
 Claude Code sends the pending tool call as JSON on stdin. Exit code 2 blocks the
 call and stderr is the reason the agent sees; exit code 0 lets it through.
@@ -98,6 +98,15 @@ GH_SENSITIVE_API = re.compile(
 # Merging or reviewing a pull request through the REST API instead of gh pr merge / review.
 GH_MERGE_API = re.compile(r"/pulls/[^/\s]+/(?:merge|reviews)\b|(?:^|/)merges\b")
 GRAPHQL_MUTATION = re.compile(r"\bmutation\b", re.IGNORECASE)
+# Creating, moving or deleting a release or a tag through the REST API.
+GH_RELEASE_API = re.compile(r"/releases\b|/git/refs\b|/git/tags\b")
+# A push refspec that names a release tag (v1.2.3, model-v1), with or without refs/tags/.
+TAG_REF = re.compile(r"^(refs/tags/)?(v\d|model-)")
+TAG_LIST_FLAGS = {"-l", "--list", "-n", "--contains", "--no-contains", "--points-at",
+                  "--merged", "--no-merged", "--sort", "--column", "--format", "-v", "--verify"}
+TAG_WRITE_FLAGS = {"-a", "--annotate", "-s", "--sign", "-u", "--local-user", "-f", "--force",
+                   "-d", "--delete", "-m", "--message", "-F", "--file"}
+GH_RELEASE_WRITE = {"create", "edit", "delete", "upload", "delete-asset"}
 GH_API_OPTS_WITH_VALUE = {"-H", "--header", "-q", "--jq", "-t", "--template",
                           "--hostname", "--cache", "-p", "--preview"}
 REDIRECT = re.compile(r">>?\s*([^\s;&|<>]+)")
@@ -176,14 +185,24 @@ def check_git(tokens: list[str], root: str, cwd: str) -> None:
                 block("R-01", f"git push {a} can rewrite or delete history")
             if not a.startswith("-"):
                 positional.append(a)
+        for a in args:
+            if a in ("--tags", "--follow-tags"):
+                block("R-04", f"git push {a} publishes tags; the student cuts releases")
         for ref in positional[1:]:
             if ref.startswith("+") or ref.startswith(":"):
                 block("R-01", f"refspec {ref} forces or deletes a remote branch")
             dst = ref.split(":")[-1]
             if dst in ("main", "refs/heads/main"):
                 block("R-01", "pushing to main; open a pull request from a branch instead")
+            if any(TAG_REF.match(part) for part in ref.split(":")):
+                block("R-04", f"refspec {ref} pushes a release tag; the student cuts releases")
         if len(positional) <= 1 and current_branch(cwd) == "main":
             block("R-01", "the current branch is main; push a feature branch instead")
+    if sub == "tag":
+        listing = bool(TAG_LIST_FLAGS & set(args))
+        positional = [a for a in args if not a.startswith("-")]
+        if TAG_WRITE_FLAGS & set(args) or (positional and not listing):
+            block("R-04", "git tag creates, moves or deletes a tag; the student cuts releases")
     if sub in ("checkout", "restore", "rm", "mv", "apply", "am"):
         for a in args:
             for p in pieces(a):
@@ -205,6 +224,8 @@ def check_gh(tokens: list[str]) -> None:
         block("R-01, R-05", "the agent never approves a pull request")
     if sub[:1] == ["repo"] and len(sub) > 1 and sub[1] in {"edit", "delete", "rename", "archive"}:
         block("R-01, R-03", f"gh repo {sub[1]} changes repository settings")
+    if sub[:1] == ["release"] and len(sub) > 1 and sub[1] in GH_RELEASE_WRITE:
+        block("R-04, R-07", f"gh release {sub[1]} publishes or changes a release; the student cuts releases")
     if sub[:1] in (["secret"], ["variable"]) and len(sub) > 1 and sub[1] in {"set", "delete", "remove"}:
         block("R-02, R-03", f"gh {sub[0]} {sub[1]} changes repository secrets or variables")
     if sub[:1] == ["api"]:
@@ -244,6 +265,8 @@ def check_gh(tokens: list[str]) -> None:
             return
         if GH_SENSITIVE_API.search(endpoint) and method != "GET":
             block("R-01, R-03", f"gh api {method} {endpoint} changes protection or access")
+        if GH_RELEASE_API.search(endpoint) and method != "GET":
+            block("R-04, R-07", f"gh api {method} {endpoint} creates or changes a release or a tag")
         if GH_MERGE_API.search(endpoint) and method != "GET":
             block("R-01, R-05", f"gh api {method} {endpoint} merges or reviews a pull request; "
                                 "the student merges after review")
