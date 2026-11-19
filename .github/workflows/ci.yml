@@ -1,11 +1,13 @@
-# F1 pipeline: the two required checks named in .github/rulesets/main-checks.json.
-# F4 adds hadolint, semgrep, trivy, zizmor, the detection gate and the signed release.
+# Pull-request pipeline. Every job is a required check on main (ruleset main-checks); the
+# table in docs/project.md maps each one to the risk it guards. The tools run as containers
+# pinned by digest from ci/compose.yaml through the Makefile, the same commands as on the
+# student's machine, instead of third-party actions (R-04).
 name: ci
 on:
   pull_request:
     branches: [main]
 
-# Default token is read-only; a job widens only what it needs (R-03).
+# Default token is read-only, and no job here widens it (R-03).
 permissions:
   contents: read
 
@@ -22,7 +24,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - run: pip install -r requirements-dev.txt
+      - run: pip install --require-hashes -r requirements-dev.txt
       # gitleaks runs below on the full history; no-commit-to-branch only makes sense locally.
       - run: SKIP=gitleaks,no-commit-to-branch pre-commit run --all-files --show-diff-on-failure
       - name: gitleaks (full history, R-02)
@@ -30,6 +32,8 @@ jobs:
           docker run --rm -v "$PWD:/repo"
           ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
           git /repo --config /repo/.gitleaks.toml --redact --verbose
+      - name: ShellCheck, Hadolint, Semgrep, zizmor (R-04)
+        run: make lint-ci
 
   test:
     name: test
@@ -41,5 +45,39 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - run: pip install -r requirements-dev.txt
+      - run: pip install --require-hashes -r requirements-dev.txt
       - run: python -m pytest -q
+
+  scan:
+    name: scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Trivy on both images and the Python dependencies, HIGH or CRITICAL fails (R-04)
+        run: make scan
+
+  detection-gate:
+    name: detection-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: pip install --require-hashes -r requirements-dev.txt
+      # The model ships outside git, as an asset of release model-v1. Its SHA-256 is checked
+      # here against detector/thresholds.json and again by run.py before it is unpickled (R-07).
+      - name: Model from release model-v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p models
+          gh release download model-v1 --repo "$GITHUB_REPOSITORY" --dir models \
+            --pattern "$(jq -r .model detector/thresholds.json)"
+          make model-check
+      - name: Replay the lab fixtures and compare with the baseline (R-06)
+        run: make gate

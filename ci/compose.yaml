@@ -1,0 +1,72 @@
+# CI and release tools as containers, each pinned by tag and digest (R-04).
+# They run from this one file instead of third-party GitHub Actions: the Makefile and the
+# workflows call the same pinned images, and Dependabot (docker-compose ecosystem, 14-day
+# cooldown) proposes new digests as pull requests. Every version here was at least 14 days
+# old when it was adopted.
+#
+# Run from the repository root through the Makefile (make lint-ci, make scan), or:
+#   docker compose -f ci/tools.yaml run --rm -T <tool> <args>
+# The repository is mounted read-only at /src; paths in this file are relative to ci/.
+name: ml-ids-stack-tools
+
+services:
+  shellcheck:
+    image: koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
+    working_dir: /src
+    volumes: ["..:/src:ro"]
+
+  hadolint:
+    image: hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
+    entrypoint: ["/bin/hadolint"]
+    working_dir: /src
+    volumes: ["..:/src:ro"]
+
+  semgrep:
+    image: semgrep/semgrep:1.184.0@sha256:cc1b68266f267878b39739373ea9985b9a78e5d64497dd875c8de100b22695ed
+    entrypoint: ["semgrep"]
+    working_dir: /src
+    environment:
+      SEMGREP_SEND_METRICS: "off"
+      SEMGREP_ENABLE_VERSION_CHECK: "0"
+    volumes: ["..:/src:ro"]
+
+  zizmor:
+    image: ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
+    working_dir: /src
+    volumes: ["..:/src:ro"]
+
+  # Scans image tarballs from out/images/ and the Python lock files. The vulnerability
+  # database is downloaded at run time and cached in a named volume.
+  trivy:
+    image: ghcr.io/aquasecurity/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+    working_dir: /src
+    environment:
+      TRIVY_CACHE_DIR: /cache
+    volumes: ["..:/src:ro", "trivy-cache:/cache"]
+
+  # SBOM of an image tarball, written to stdout.
+  syft:
+    image: ghcr.io/anchore/syft:v1.56.0@sha256:697ae864af1299cfa43c54b161cea3dd65c6d54de82e3dba66ea3dccb3acc313
+    working_dir: /src
+    environment:
+      HOME: /tmp
+      SYFT_CHECK_FOR_APP_UPDATE: "false"
+    tmpfs: [/tmp]
+    volumes: ["..:/src:ro"]
+
+  # Keyless signing in the release job: the workflow's OIDC token reaches cosign through the
+  # two ACTIONS_ID_TOKEN_* variables, the registry login through DOCKER_CONFIG. Run it with
+  # --user "$(id -u):$(id -g)" so the bundle it writes to out/ belongs to the runner.
+  cosign:
+    image: ghcr.io/sigstore/cosign/cosign:v3.1.4@sha256:0f06154836d2de34f887a5c273506d52ca43edaa1d9e53e6510fa78a48f69c2d
+    working_dir: /src
+    environment:
+      HOME: /tmp
+      DOCKER_CONFIG: /docker
+      ACTIONS_ID_TOKEN_REQUEST_URL: ${ACTIONS_ID_TOKEN_REQUEST_URL:-}
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}
+    tmpfs: [/tmp]
+    volumes: ["..:/src:ro", "../out:/out", "${HOME}/.docker:/docker:ro"]
+
+volumes:
+  trivy-cache:

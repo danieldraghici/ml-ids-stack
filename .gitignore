@@ -12,6 +12,7 @@ certs/
 
 # Model files ship as signed release assets, never in git (R-07)
 models/*.joblib
+models/*.sigstore.json
 
 # Datasets and large captures stay in the dissertation repo; small fixtures live in tests/fixtures/
 data/
