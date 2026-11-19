@@ -93,9 +93,21 @@ Then:
 ## 5. Replay a capture through the detector (F3)
 
 - `make model`: copies the model bundle from the dissertation workspace (`MODEL_SRC`) into `models/` (git-ignored) and checks its SHA-256 against `detector/thresholds.json`.
-- `make replay PCAP=portscan.pcap`: builds the detector image and replays one fixture from `tests/fixtures/pcaps/` in a read-only container without network or capabilities. Alerts, episodes and the run status land in `out/`.
+- `make replay PCAP=portscan.pcap`: builds the detector image and replays one fixture from `tests/fixtures/pcaps/` in a read-only container without network or capabilities. The flow alerts, the run status and the episodes grouped from the alerts (`detector/episodes.py`) land in `out/`.
 
 The detector refuses a model whose SHA-256 differs from `detector/thresholds.json` before loading it (`docs/evidence/R-07-tampered-model-refused.txt`), and then a model whose feature list holds an address, a raw port or the TTL (`tests/test_model_verify.py`). Fixtures and their baseline: `tests/fixtures/pcaps/README.md`.
+
+### The alerts in OpenSearch (F5)
+
+With the stack up, Logstash reads `out/` and indexes every replay as it is written:
+
+```bash
+make up              # now also builds and starts Logstash; the first build takes a few minutes
+make gate            # replays the four fixtures; the alerts and episodes reach OpenSearch
+make dashboards      # index patterns and saved searches, into the global tenant
+```
+
+In Dashboards (`https://localhost:8443`), Discover, open the saved search "ML-IDS episodes, one per attacking source" or "ML-IDS flow alerts" and set the time range to August 2026, when the lab captures were recorded (`@timestamp` is the flow's own time).
 
 ## 6. Pipeline and releases (F4)
 

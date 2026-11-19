@@ -52,27 +52,33 @@ Dependabot proposes updates to actions, images, compose files, Python pins, dev 
 
 ## 4. Architecture and components
 
-State after F4 (later phases add Logstash, Suricata, MISP and monitoring to the same picture):
+State after the ML-IDS alerts reach OpenSearch (F5; Suricata, Sigma, MISP and monitoring join the same picture later):
 
 ```
                        make replay PCAP=...                       make up / make down
   tests/fixtures/pcaps ───────────────────▶ detector container      compose.yaml (127.0.0.1 only)
   (lab pcaps < 5 MB)                        read-only, no network     ┌──────────────────────────────┐
                                             no capabilities           │ opensearch 2.19.6  :9200     │
-  models/ (git-ignored) ──── SHA-256 ─────▶ run.py: verify model,     │ opensearch-dashboards        │
-  detector/thresholds.json  checked          then live.py --replay    │   (no published port)        │
-                                                 │                    │ frontdoor nginx 1.30.7 :8443 │
-                                                 ▼                    │   TLS 1.2/1.3, lab CA cert   │
-                                     out/<name>.alerts.jsonl          └──────────────────────────────┘
-                                     out/<name>.episodes.json           ▲ admin password: SOPS/age
-                                     (F5: into Logstash, ECS,           │ ciphertext in secrets/,
-                                      OpenSearch)                       │ .env.secrets only while up
+  models/ (git-ignored) ──── SHA-256 ─────▶ run.py: verify model      │   mlids-alert-*              │
+  detector/thresholds.json  checked          and feature contract,    │   mlids-episode-*            │
+                                             then live.py --replay    │ opensearch-dashboards        │
+                                                 │                    │   (no published port)        │
+                                                 ▼                    │ frontdoor nginx 1.30.7 :8443 │
+                                     out/<name>.alerts.jsonl          │   TLS 1.2/1.3, lab CA cert   │
+                                     episodes.py ▼                    │ logstash (no published port) │
+                                     out/<name>.episodes.jsonl ──────▶│   pipelines/mlids.conf → ECS │
+                                       (out/ mounted read-only)       └──────────────────────────────┘
+                                                                        ▲ admin password: SOPS/age
+                                                                        │ ciphertext in secrets/,
+                                                                        │ .env.secrets only while up
 ```
 
 - **Stack** (`compose.yaml`): single-node OpenSearch and Dashboards, pinned by digest, host ports only on 127.0.0.1. Dashboards is reachable only through the nginx front door, which serves a 30-day certificate from an offline lab root and intermediate CA (`scripts/pki.sh`). `make up` and `make down` reach the same state every time (`docs/evidence/R-02-stack-up-down-twice.txt`).
 - **Secrets**: the OpenSearch admin password lives in git only as SOPS ciphertext for the student's age key; `make secrets` writes an owner-only `.env.secrets` that `make down` deletes.
 - **Detector** (`detector/`): the 16 inference files from the dissertation, unchanged, with their SHA-256 in `detector/SOURCES.tsv`; the model's SHA-256 is checked before it is unpickled; model, profile and threshold come only from `detector/thresholds.json`. Model details: `docs/model-card.md`.
 - **Fixtures** (`tests/fixtures/pcaps/`): four lab captures under 5 MB (port scan, slowloris, Hulk, benign) with their sources, cut commands and the detector baseline.
+- **Episodes** (`detector/episodes.py`): the flow alerts grouped by attacking source, with a 120 s gap and the predicted families counted inside, so each fixture attack is one line for the analyst instead of the 2 to 5 that the dissertation's per-family tracker produced (R-08). It streams, so a live feed would group the same way.
+- **Alert path** (`logstash/`, `pipelines/`): Logstash OSS 8.19, pinned and built with the OpenSearch output plugin, tails the detector's output folder and maps alerts and episodes to ECS (`source.ip`, `destination.ip` and `.port`, `rule.name`, `event.*`, the model's score and window features under `mlids.*`). `@timestamp` is the flow's own time; the document id is a fingerprint, so a repeated replay overwrites instead of duplicating. A record that is not JSON or lacks a field the rules read goes to `mlids-error`. The same filters run in the pipeline tests and in the detection gate. `make dashboards` imports the index patterns and two saved searches.
 
 ## 5. AI workflow
 
