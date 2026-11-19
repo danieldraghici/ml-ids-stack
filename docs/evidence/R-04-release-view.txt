@@ -1,0 +1,30 @@
+# R-04 evidence: gh release view v0.4.2, 2026-11-19T11:13:39Z
+$ gh release view v0.4.2
+title:	v0.4.2
+tag:	v0.4.2
+draft:	false
+prerelease:	false
+immutable:	true
+author:	github-actions[bot]
+created:	2026-11-19T11:06:39Z
+published:	2026-11-19T11:09:47Z
+url:	https://github.com/danieldraghici/ml-ids-stack/releases/tag/v0.4.2
+asset:	detector.sbom.spdx.json
+asset:	frontdoor.sbom.spdx.json
+asset:	images.txt
+asset:	nfv3_window_xgb_latest.joblib
+asset:	nfv3_window_xgb_latest.joblib.sigstore.json
+--
+## What's Changed
+* fix: release signs the digest GHCR serves (R-04) by @danieldraghici in https://github.com/danieldraghici/ml-ids-stack/pull/10
+
+
+**Full Changelog**: https://github.com/danieldraghici/ml-ids-stack/compare/v0.4.1...v0.4.2
+
+$ gh release view v0.4.2 --json isImmutable,assets
+{"assets":[{"digest":"sha256:8b2a5171b4bd4ace43064448e86cd064f939c96044b219acfc2e867fafbf8809","name":"detector.sbom.spdx.json","size":3002078},{"digest":"sha256:38aab8ebc479c1b83e986b7427805eeef98d00287b7d95e7ebbcbc27e57641df","name":"frontdoor.sbom.spdx.json","size":1044028},{"digest":"sha256:243b9181f7074beaf8f758ee5a772e26670103d4d497dea2633372ce778ac81e","name":"images.txt","size":235},{"digest":"sha256:55c587d2a2a7f10049c1ea74f5e97bd7ea44634f4d83aecbff13a1bc8d1f8cbd","name":"nfv3_window_xgb_latest.joblib","size":4424110},{"digest":"sha256:370c7df98d49efa318d123ce89a1c6f7772dcac903e19a7ab1febaf2b99044a7","name":"nfv3_window_xgb_latest.joblib.sigstore.json","size":10607}],"isImmutable":true}
+
+# Tags v0.4.0 and v0.4.1 have no release: their runs stopped at the GHCR push and at signing, before
+# anything was published (fixed in pull requests 9 and 10). Ruleset release-tags keeps both tags as they are.
+v0.4.2	Latest	v0.4.2	2026-11-19T11:09:47Z
+Model v1: nfv3_window_xgb_latest		model-v1	2026-11-19T09:32:58Z
