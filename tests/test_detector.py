@@ -87,7 +87,7 @@ def test_replay_runs_hardened():
     hardened = make[make.index("HARDENED :="):make.index("replay: detector")]
     for flag in ("--read-only", "--network none", "--cap-drop ALL", "no-new-privileges", "--user"):
         assert flag in hardened, flag
-    block = make[make.index("replay: detector"):make.index("# R-06 detection gate")]
+    block = make[make.index("replay: detector"):make.index("\nsuricata:")]
     assert block.count("$(HARDENED)") == 2 and "docker run" not in block
     for mount in ("/models:ro", "/pcaps:ro"):
         assert mount in block, mount
