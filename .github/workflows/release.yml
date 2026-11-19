@@ -62,7 +62,10 @@ jobs:
               [ "$try" = 3 ] && exit 1
               sleep 20
             done
-            docker inspect --format '{{index .RepoDigests 0}}' "$registry/$name:$TAG" >> out/images.txt
+            # The digest as GHCR serves it, read back from the registry. docker inspect would list
+            # the local name first under the containerd image store.
+            digest=$(docker buildx imagetools inspect "$registry/$name:$TAG" --format '{{.Manifest.Digest}}')
+            echo "$registry/$name@$digest" >> out/images.txt
           done
           cat out/images.txt
 
