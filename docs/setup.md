@@ -7,9 +7,11 @@ Everything runs in WSL2 Ubuntu or in the dev container, never in PowerShell. The
 ```bash
 sudo apt update && sudo apt install -y make jq git python3-venv age
 python3 -m venv ~/.venvs/secops && . ~/.venvs/secops/bin/activate
-pip install -r requirements-dev.txt
+pip install --require-hashes -r requirements-dev.txt
 pre-commit install
 ```
+
+Docker Desktop with WSL integration for this distribution runs the stack, the detector and the CI tools (`ci/compose.yaml`).
 
 The GitHub CLI comes from GitHub's own apt repository (https://cli.github.com). Log in once with `gh auth login -h github.com -p https -s workflow -w`.
 
@@ -25,6 +27,16 @@ sudo install -m 0755 "sops-v${SOPS_V}.linux.amd64" /usr/local/bin/sops
 
 For step, follow the smallstep CLI install guide for Debian/Ubuntu (v0.31.0 or newer).
 
+cosign verifies signed releases on this machine (`make model-release`, section 6). Take the version pinned in `ci/compose.yaml` and check the binary against the release's checksum file the same way:
+
+```bash
+COSIGN_V=3.1.4
+curl -LO "https://github.com/sigstore/cosign/releases/download/v${COSIGN_V}/cosign-linux-amd64"
+curl -LO "https://github.com/sigstore/cosign/releases/download/v${COSIGN_V}/cosign_checksums.txt"
+sha256sum --ignore-missing -c cosign_checksums.txt
+sudo install -m 0755 cosign-linux-amd64 /usr/local/bin/cosign
+```
+
 ## 2. GitHub (route 2: personal private repository with GitHub Pro from GitHub Education)
 
 The student's account belongs to no organization, so the ULBS organization route (route 1) does not apply. GitHub Pro comes from the Student Developer Pack; rulesets on this private repository prove it is active.
@@ -36,7 +48,7 @@ The student's account belongs to no organization, so the ULBS organization route
    - GitHub Actions may not create or approve pull requests (R-05);
    - actions must be pinned to a full-length commit SHA (R-04);
    - fork pull request workflows from outside collaborators need approval (R-04).
-4. Rules: import `.github/rulesets/main-checks.json` and `.github/rulesets/main-review.json` (R-01, `docs/evidence/R-01-rulesets-active.json`). The bypass of `main-review` stays on "For pull requests only".
+4. Rules: import `.github/rulesets/main-checks.json`, `.github/rulesets/main-review.json` and `.github/rulesets/release-tags.json` (R-01, R-04, `docs/evidence/R-01-rulesets-active.json`). The bypass of `main-review` stays on "For pull requests only". A required check appears in the ruleset only after it has run once on a pull request.
 5. Create the agent's fine-grained token, and the GitHub App that becomes the pull-request reviewer in F7, both limited to this repository (`docs/credentials.md`, R-03).
 
 ## 3. Bootstrap order
@@ -83,9 +95,20 @@ Then:
 - `make model`: copies the model bundle from the dissertation workspace (`MODEL_SRC`) into `models/` (git-ignored) and checks its SHA-256 against `detector/thresholds.json`.
 - `make replay PCAP=portscan.pcap`: builds the detector image and replays one fixture from `tests/fixtures/pcaps/` in a read-only container without network or capabilities. Alerts, episodes and the run status land in `out/`.
 
-The detector refuses a model whose SHA-256 differs from `detector/thresholds.json` before loading it (`docs/evidence/R-07-tampered-model-refused.txt`). Fixtures and their baseline: `tests/fixtures/pcaps/README.md`.
+The detector refuses a model whose SHA-256 differs from `detector/thresholds.json` before loading it (`docs/evidence/R-07-tampered-model-refused.txt`), and then a model whose feature list holds an address, a raw port or the TTL (`tests/test_model_verify.py`). Fixtures and their baseline: `tests/fixtures/pcaps/README.md`.
 
-## 6. Ahead of F6
+## 6. Pipeline and releases (F4)
 
-- Create a free Shodan account; the API key goes into `secrets/stack.enc.yaml` in F3.
+The CI jobs run the same Makefile targets, so a red check can be reproduced in WSL:
+
+- `make lint-ci`: ShellCheck, Hadolint, Semgrep and zizmor, as containers pinned by digest in `ci/compose.yaml`;
+- `make scan`: builds both images and runs Trivy on them and on the Python dependencies; a HIGH or CRITICAL finding with a fix fails;
+- `make gate`: replays the four fixtures and compares the result with `tests/regression/baseline.json` (R-06);
+- `make sbom`: the SPDX SBOM of each image, with Syft.
+
+The model reaches CI as an asset of the release `model-v1`, uploaded once by the student (`gh release create model-v1 models/<model> --latest=false`). A release is cut by the student only: push a tag `vX.Y.Z` on `main`, and `.github/workflows/release.yml` scans and gates the images again, pushes them to GHCR, signs the image digests and the model with Cosign keyless and publishes the release with generated notes, the SBOMs, the model and its signature bundle. `make model-release` downloads the model of the latest release and keeps it only if `cosign verify-blob` proves it was signed by this repository's release workflow.
+
+## 7. Ahead of F6
+
+- Create a free Shodan account; the API key goes into `secrets/stack.enc.yaml` in F6.
 - Pull the misp-docker images in advance; they are several GB.
