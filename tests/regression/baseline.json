@@ -1,5 +1,5 @@
 {
-  "_about": "Detector and Suricata baseline on the fixtures (R-06, R-09). Lab captures recorded 2026-11-17 (docs/evidence/R-06-replay-baseline.txt); synthetic captures (tests/fixtures/pcaps/make_synthetic.py) recorded 2026-11-19. Episodes from detector/episodes.py. suricata: alerts per local rule sid; sigma: events per rule in rules/sigma/. kind attack: detection >= min_detection, one episode from the attacker; gap: the ML-IDS is not expected to alert, its count may not fall; benign: alerts and episodes may not rise. Protected by the guard hook: only the student changes it, in a reviewed pull request.",
+  "_about": "Detector and Suricata baseline on the fixtures (R-06, R-09). Lab captures recorded 2026-11-17 (docs/evidence/R-06-replay-baseline.txt) and slowloris again on 2026-11-19, once replay became deterministic (one nfstream meter, size-only batches: 1,074 alerts instead of a value between 1,064 and 1,070); synthetic captures (tests/fixtures/pcaps/make_synthetic.py) recorded 2026-11-19. Episodes from detector/episodes.py. suricata: alerts per local rule sid; sigma: events per rule in rules/sigma/. alerts: the exact count every replay must reproduce; kind attack: detection >= min_detection, one episode from the attacker; gap: the ML-IDS is not expected to alert, its count may not fall; benign: alerts and episodes may not rise. Protected by the guard hook: only the student changes it, in a reviewed pull request.",
   "min_detection": 0.99,
   "fixtures": {
     "portscan.pcap": {
@@ -17,7 +17,7 @@
       "attacker": "192.168.20.11",
       "victim": "192.168.10.11",
       "flows": 1076,
-      "alerts": 1067,
+      "alerts": 1074,
       "episodes": 1,
       "suricata": {},
       "sigma": {}
@@ -62,7 +62,7 @@
       "alerts": 60,
       "episodes": 1,
       "suricata": {
-        "9000002": 1
+        "9000002": 2
       },
       "sigma": {
         "ssh_guessing_tool_client.yml": 60

@@ -25,7 +25,7 @@ Notes:
 | Fixture | Flows | Alert records | Predicted classes |
 |---|---|---|---|
 | `portscan.pcap` | 4100 | 4100 | PortScan 3098, DoS 1002 |
-| `slowloris.pcap` | 1076 | 1067 | DoS 693, DDoS 310, PortScan 37, WebAttack 27, Benign 9 |
+| `slowloris.pcap` | 1076 | 1074 | DoS 1010, PortScan 63, WebAttack 1, Benign 2 |
 | `hulk1_head.pcap` | 601 | 601 | DoS-Slow 371, DoS 228, DDoS 1, PortScan 1 |
 | `benign_head.pcap` | 43 | 1 | Benign 41, PortScan 2 |
 | `icmp_sweep.pcap` (synthetic) | 254 | 254 | PortScan 254 |
@@ -33,4 +33,4 @@ Notes:
 | `dns_txt.pcap` (synthetic) | 1 | 0 | Benign 1 |
 | `near_misses.pcap` (synthetic) | 6 | 1 | Benign 5, DoS 1 |
 
-Every flow of the three attack fixtures except 9 slowloris flows is flagged as an attack; on the benign fixture 2 of 43 flows are flagged (PortScan), the false alarms R-08 tracks. The attack families are mixed inside one attack (the Hulk flood shows up as DoS and DoS-Slow), a known limit recorded under R-08.
+Every flow of the three attack fixtures except 2 slowloris flows is flagged as an attack (slowloris recorded again on 2026-11-19, after replay was made deterministic: one nfstream meter and batches cut by size, `detector/run.py`; before, the count moved between 1,064 and 1,070 from run to run); on the benign fixture 2 of 43 flows are flagged (PortScan), the false alarms R-08 tracks. The attack families are mixed inside one attack (the Hulk flood shows up as DoS and DoS-Slow), a known limit recorded under R-08.
