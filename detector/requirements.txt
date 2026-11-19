@@ -34,4 +34,4 @@ threadpoolctl==3.6.0 \
 tzdata==2026.6 \
     --hash=sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec
 xgboost-cpu==3.4.0 \
-    --hash=sha256:d65e8045f25e28f631da33ac5a51e305937bb81e3911ac9141823dbc4da1a0bb
+    --hash=sha256:9818d48e5277527015419073a418a76c99cf5b094dbf1287533ea6a9f0b86301
