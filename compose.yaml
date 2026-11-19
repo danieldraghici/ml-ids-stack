@@ -55,5 +55,30 @@ services:
       opensearch-dashboards:
         condition: service_healthy
 
+  # ML-IDS alerts and episodes into OpenSearch as ECS (R-06, R-08, F5). Built from
+  # logstash/Dockerfile (Logstash OSS pinned by digest + the OpenSearch output plugin). It reads
+  # the detector's out/ folder read-only and publishes no port.
+  logstash:
+    build: logstash
+    image: ml-ids-stack/logstash:local
+    environment:
+      LS_JAVA_OPTS: -Xms512m -Xmx512m
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD:?run make secrets}
+    volumes:
+      - ./pipelines:/usr/share/logstash/pipeline:ro
+      - ./config/opensearch:/usr/share/logstash/templates:ro
+      - ./out:/data:ro
+      - logstash-data:/usr/share/logstash/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:9600/"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
 volumes:
   opensearch-data:
+  logstash-data:
