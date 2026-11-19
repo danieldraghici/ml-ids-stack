@@ -1,7 +1,7 @@
 # Run from WSL2 Ubuntu (see docs/setup.md). Ports come from .env, the admin password from
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
 .PHONY: lint lint-ci test secrets pki up down single-node health dashboards tls model model-check model-release \
-        detector frontdoor logstash images scan scan-upstream sbom replay gate
+        detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate
 
 # Where the dissertation's model bundle lives on this machine (never committed, R-07).
 MODEL_SRC ?= /mnt/d/ML_IDS_Disertation/ML_IDS_Disertation/models/nfv3_window_xgb_latest.joblib
@@ -9,7 +9,8 @@ MODEL := $(shell jq -r .model detector/thresholds.json)
 # Release to take the signed model from (make model-release); empty means the latest release.
 MODEL_RELEASE ?=
 PCAP ?=
-FIXTURES := portscan.pcap slowloris.pcap hulk1_head.pcap benign_head.pcap
+FIXTURES := portscan.pcap slowloris.pcap hulk1_head.pcap benign_head.pcap \
+            icmp_sweep.pcap ssh_bruteforce.pcap dns_txt.pcap near_misses.pcap
 
 COMPOSE := docker compose --env-file .env --env-file .env.secrets
 # CI tools as containers pinned by digest (ci/compose.yaml, R-04).
@@ -134,13 +135,17 @@ scan: images
 	$(TOOLS) trivy image --input out/images/frontdoor.tar $(SCAN_FLAGS)
 	$(TOOLS) trivy fs --scanners vuln --skip-dirs out $(SCAN_FLAGS) .
 
-# R-04, accepted risk: Logstash bundles Java and Ruby libraries this repository cannot patch, so
-# its findings are listed on every pull request without failing it. It publishes no port and
-# reads only the detector's output folder; Dependabot proposes each new pinned release.
+# R-04, accepted risk: Logstash and Suricata bundle libraries this repository cannot patch, so
+# their findings are listed on every pull request without failing it. Neither publishes a port;
+# Logstash reads only the detector's output folder and Suricata runs without network on pcaps.
+# Dependabot proposes each new pinned release.
+SURICATA_IMAGE := $(shell awk '/image: jasonish\/suricata/ {print $$2}' ci/compose.yaml)
 scan-upstream: logstash
 	@mkdir -p out/images
 	docker save -o out/images/logstash.tar ml-ids-stack/logstash:local
+	docker pull -q $(SURICATA_IMAGE) >/dev/null && docker save -o out/images/suricata.tar $(SURICATA_IMAGE)
 	$(TOOLS) trivy image --input out/images/logstash.tar --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 --no-progress
+	$(TOOLS) trivy image --input out/images/suricata.tar --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 --no-progress
 
 # SPDX SBOM of each image (Syft), attached to every release.
 sbom: images
@@ -161,8 +166,23 @@ replay: detector
 	$(HARDENED) -v "$$PWD/out:/out" --entrypoint python ml-ids-stack/detector:local \
 	  /app/episodes.py "/out/$(basename $(PCAP)).alerts.jsonl" "/out/$(basename $(PCAP)).episodes.jsonl"
 
-# R-06 detection gate: replay every fixture into out/, then compare with
-# tests/regression/baseline.json. The CI job detection-gate runs exactly this.
+# Suricata 8 on one pcap (R-09), with only the rules in suricata/rules/: same hardening as the
+# detector (ci/compose.yaml: read-only, no network, no capabilities). EVE JSON lands in
+# out/<name>.eve.json, which a running stack ingests next to the ML-IDS alerts.
+suricata:
+	@test -n "$(PCAP)" || { echo "usage: make suricata PCAP=icmp_sweep.pcap"; exit 1; }
+	@mkdir -p out
+	@rm -f out/$(basename $(PCAP)).eve.json
+	$(TOOLS) --user "$$(id -u):$$(id -g)" suricata -c /src/suricata/suricata.yaml -S /src/suricata/rules/local.rules \
+	  -l /out -k none -r "/src/tests/fixtures/pcaps/$(PCAP)" --set "outputs.0.eve-log.filename=$(basename $(PCAP)).eve.json"
+
+# The synthetic fixtures for the techniques the lab captures lack (R-09), byte-identical each run.
+fixtures-synthetic:
+	python3 tests/fixtures/pcaps/make_synthetic.py
+
+# R-06, R-09 detection gate: replay every fixture through the ML-IDS and Suricata into out/,
+# then compare with tests/regression/baseline.json. The CI job detection-gate runs exactly this.
 gate:
 	@for p in $(FIXTURES); do $(MAKE) --no-print-directory replay PCAP=$$p || exit 1; done
+	@for p in $(FIXTURES); do $(MAKE) --no-print-directory suricata PCAP=$$p >/dev/null || exit 1; done
 	REPLAY_OUT=out python3 -m pytest -q tests/regression

@@ -68,5 +68,18 @@ services:
     tmpfs: [/tmp]
     volumes: ["..:/src:ro", "../out:/out", "${HOME}/.docker:/docker:ro"]
 
+  # Suricata 8, the second sensor (R-09), in pcap replay mode only: no network, no capabilities,
+  # read-only filesystem, like the detector. make suricata PCAP=<fixture> runs it; the rules and
+  # the configuration come from the repository (suricata/), read-only.
+  suricata:
+    image: jasonish/suricata:8.0.7@sha256:bf4bea5b45d9c10265a3ee6628e2ec8930b9d1fb7caf9d1afb63af413b9cbb26
+    entrypoint: ["suricata"]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp, /var/run/suricata, /var/log/suricata, /var/lib/suricata]
+    volumes: ["..:/src:ro", "../out:/out", "../suricata/rules:/rules:ro"]
+
 volumes:
   trivy-cache:

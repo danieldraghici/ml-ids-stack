@@ -15,13 +15,13 @@ FROM = re.search(r"^FROM\s+(\S+)", (ROOT / "logstash" / "Dockerfile").read_text(
 IMAGE = FROM.group(1)
 
 
-def run_pipeline(lines, pipelines=("mlids.conf",), timeout=600):
-    """Feed lines (strings) through tests/harness + the named pipelines; return the events."""
+def run_pipeline(lines, pipeline="mlids", timeout=600):
+    """Feed lines (strings) through tests/harness + pipelines/<pipeline>.conf; return the events."""
     mounts = ["-v", f"{ROOT / 'tests' / 'harness' / '00-input.conf'}:/pipe/00-input.conf:ro",
-              "-v", f"{ROOT / 'tests' / 'harness' / '99-output.conf'}:/pipe/99-output.conf:ro"]
-    for i, name in enumerate(pipelines, start=10):
-        mounts += ["-v", f"{ROOT / 'pipelines' / name}:/pipe/{i}-{name}:ro"]
-    cmd = ["docker", "run", "--rm", "-i", "--network", "none", "--hostname", "localhost", *mounts, IMAGE,
+              "-v", f"{ROOT / 'tests' / 'harness' / '99-output.conf'}:/pipe/99-output.conf:ro",
+              "-v", f"{ROOT / 'pipelines' / (pipeline + '.conf')}:/pipe/10-{pipeline}.conf:ro"]
+    cmd = ["docker", "run", "--rm", "-i", "--network", "none", "--hostname", "localhost",
+           "-e", f"PIPELINE={pipeline}", *mounts, IMAGE,
            "logstash", "-f", "/pipe", "--log.level=error", "--pipeline.workers=1",
            "--pipeline.ecs_compatibility=v8"]
     out = subprocess.run(cmd, input="".join(l.rstrip("\n") + "\n" for l in lines),
