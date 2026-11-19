@@ -52,7 +52,7 @@ Dependabot proposes updates to actions, images, compose files, Python pins, dev 
 
 ## 4. Architecture and components
 
-State after F3 (later phases add Logstash, Suricata, MISP and monitoring to the same picture):
+State after F4 (later phases add Logstash, Suricata, MISP and monitoring to the same picture):
 
 ```
                        make replay PCAP=...                       make up / make down
@@ -61,7 +61,7 @@ State after F3 (later phases add Logstash, Suricata, MISP and monitoring to the 
                                             no capabilities           │ opensearch 2.19.6  :9200     │
   models/ (git-ignored) ──── SHA-256 ─────▶ run.py: verify model,     │ opensearch-dashboards        │
   detector/thresholds.json  checked          then live.py --replay    │   (no published port)        │
-                                                 │                    │ frontdoor nginx 1.30.5 :8443 │
+                                                 │                    │ frontdoor nginx 1.30.7 :8443 │
                                                  ▼                    │   TLS 1.2/1.3, lab CA cert   │
                                      out/<name>.alerts.jsonl          └──────────────────────────────┘
                                      out/<name>.episodes.json           ▲ admin password: SOPS/age
