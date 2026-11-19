@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_
 
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --only-binary=:all: -r requirements.txt
+RUN pip install --only-binary=:all: --require-hashes -r requirements.txt
 
 COPY thresholds.json run.py ./
 COPY src/ src/
