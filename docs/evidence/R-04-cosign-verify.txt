@@ -1,0 +1,30 @@
+# R-04 evidence: cosign verify of the v0.4.2 images, run from the student's machine (WSL), 2026-11-19T11:12:35Z
+# cosign v3.1.4; image references from the release asset images.txt
+
+$ cosign verify ghcr.io/danieldraghici/ml-ids-stack/detector@sha256:cacd05773a42411866a25b740f6c33e44becc71f822080065993b6d8d13a75ba --certificate-identity-regexp '^https://github.com/danieldraghici/ml-ids-stack/\.github/workflows/release\.yml@refs/tags/v' --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+Verification for ghcr.io/danieldraghici/ml-ids-stack/detector@sha256:cacd05773a42411866a25b740f6c33e44becc71f822080065993b6d8d13a75ba --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The code-signing certificate was verified using trusted certificate authority certificates
+
+[{"critical":{"identity":{"docker-reference":"ghcr.io/danieldraghici/ml-ids-stack/detector@sha256:cacd05773a42411866a25b740f6c33e44becc71f822080065993b6d8d13a75ba"},"image":{"docker-manifest-digest":"sha256:cacd05773a42411866a25b740f6c33e44becc71f822080065993b6d8d13a75ba"},"type":"https://sigstore.dev/cosign/sign/v1"},"optional":{}}]
+exit code: 0
+
+$ cosign verify ghcr.io/danieldraghici/ml-ids-stack/frontdoor@sha256:438b06faeaed832596a6b726686be67433390ea56222db191fe8fbc34ffa3bf5 --certificate-identity-regexp '^https://github.com/danieldraghici/ml-ids-stack/\.github/workflows/release\.yml@refs/tags/v' --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+Verification for ghcr.io/danieldraghici/ml-ids-stack/frontdoor@sha256:438b06faeaed832596a6b726686be67433390ea56222db191fe8fbc34ffa3bf5 --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The code-signing certificate was verified using trusted certificate authority certificates
+
+[{"critical":{"identity":{"docker-reference":"ghcr.io/danieldraghici/ml-ids-stack/frontdoor@sha256:438b06faeaed832596a6b726686be67433390ea56222db191fe8fbc34ffa3bf5"},"image":{"docker-manifest-digest":"sha256:438b06faeaed832596a6b726686be67433390ea56222db191fe8fbc34ffa3bf5"},"type":"https://sigstore.dev/cosign/sign/v1"},"optional":{}}]
+exit code: 0
+
+# The same check against an identity from another repository must fail:
+$ cosign verify ghcr.io/danieldraghici/ml-ids-stack/detector@sha256:cacd05773a42411866a25b740f6c33e44becc71f822080065993b6d8d13a75ba --certificate-identity-regexp '^https://github.com/someone-else/' --certificate-oidc-issuer https://token.actions.githubusercontent.com
+Error: no matching attestations: failed to verify certificate identity: no matching CertificateIdentity found, last error: expected SAN value to match regex "^https://github.com/someone-else/", got "https://github.com/danieldraghici/ml-ids-stack/.github/workflows/release.yml@refs/tags/v0.4.2"
+error during command execution: no matching attestations: failed to verify certificate identity: no matching CertificateIdentity found, last error: expected SAN value to match regex "^https://github.com/someone-else/", got "https://github.com/danieldraghici/ml-ids-stack/.github/workflows/release.yml@refs/tags/v0.4.2"
+exit code: 1

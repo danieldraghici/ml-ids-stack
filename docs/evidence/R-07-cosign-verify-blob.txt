@@ -1,0 +1,18 @@
+# R-07 evidence: the model of release v0.4.2 checked with make model-release, 2026-11-19T11:12:59Z
+# cosign verify-blob proves the bundle was signed by this repository's release workflow on a v* tag;
+# the file is kept only then, and its SHA-256 is compared with detector/thresholds.json.
+$ make model-release MODEL_RELEASE=v0.4.2
+gh release download v0.4.2 --clobber --dir models --pattern "nfv3_window_xgb_latest.joblib" --pattern "nfv3_window_xgb_latest.joblib.sigstore.json"
+cosign verify-blob --bundle "models/nfv3_window_xgb_latest.joblib.sigstore.json" \
+  --certificate-identity-regexp "^https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/\.github/workflows/release\.yml@refs/tags/v" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com "models/nfv3_window_xgb_latest.joblib" \
+  || { rm -f "models/nfv3_window_xgb_latest.joblib"; exit 1; }
+Verified OK
+model SHA-256 matches thresholds.json
+exit code: 0
+
+# The same model with one byte appended no longer matches its signature:
+$ cosign verify-blob --bundle models/nfv3_window_xgb_latest.joblib.sigstore.json ... /tmp/tampered.joblib
+Error: failed to verify signature: could not verify message: invalid signature when validating ASN.1 encoded signature
+error during command execution: failed to verify signature: could not verify message: invalid signature when validating ASN.1 encoded signature
+exit code: 1
