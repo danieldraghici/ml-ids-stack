@@ -138,11 +138,12 @@ images: detector frontdoor
 	docker save -o out/images/detector.tar ml-ids-stack/detector:local
 	docker save -o out/images/frontdoor.tar ml-ids-stack/frontdoor:local
 
-# R-04: Trivy on both images and on the Python dependencies.
+# R-04: Trivy on both images and on the Python dependencies. Trivy reads only files named
+# requirements.txt by default; the pattern adds requirements-dev.txt and requirements-intel.txt.
 scan: images
 	$(TOOLS) trivy image --input out/images/detector.tar $(SCAN_FLAGS)
 	$(TOOLS) trivy image --input out/images/frontdoor.tar $(SCAN_FLAGS)
-	$(TOOLS) trivy fs --scanners vuln --skip-dirs out $(SCAN_FLAGS) .
+	$(TOOLS) trivy fs --scanners vuln --skip-dirs out --file-patterns 'pip:requirements-.*\.txt' $(SCAN_FLAGS) .
 
 # R-04, accepted risk: Logstash and Suricata bundle libraries this repository cannot patch, so
 # their findings are listed on every pull request without failing it. Neither publishes a port;

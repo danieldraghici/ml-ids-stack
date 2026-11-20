@@ -92,3 +92,15 @@ def test_requirements_pinned_exactly_with_hashes(path):
     for spec, hashes in reqs:
         assert re.fullmatch(r"[A-Za-z0-9_.\-]+==[0-9][\w.]*", spec), f"{rel(path)}: {spec} is not an exact pin"
         assert hashes, f"{rel(path)}: {spec} has no --hash"
+
+
+def test_trivy_scans_every_requirements_file():
+    """make scan (and the CI job scan) must cover every pinned Python dependency file (R-04)."""
+    makefile = (ROOT / "Makefile").read_text()
+    line = next(l for l in makefile.splitlines() if "trivy fs" in l)
+    pattern = re.search(r"--file-patterns '?pip:([^' ]+)'?", line)
+    assert pattern, "make scan has no pip file pattern: Trivy would skip requirements-*.txt"
+    files = [p for p in ROOT.rglob("requirements*.txt") if "out" not in p.relative_to(ROOT).parts]
+    assert len(files) >= 3
+    for f in files:
+        assert f.name == "requirements.txt" or re.fullmatch(pattern.group(1), f.name), f"{f} is not scanned"
