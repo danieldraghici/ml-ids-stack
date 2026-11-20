@@ -5,8 +5,9 @@ The feed lifecycle in one place:
 - trust: only attributes flagged to_ids, minus anything on a MISP warninglist (known benign
   addresses such as public resolvers), each weighted by the organisation that published it
   (enrichment/feeds.yml);
-- age-out: an indicator not updated within MAX_AGE_DAYS (default 30) is dropped, both in the
-  MISP query and again here, so a clock or query mistake cannot keep stale entries;
+- age-out: an indicator not updated within MAX_AGE_DAYS (default 30) is dropped here and
+  counted, so the meta file shows how much of each pull was stale (a feed that stopped
+  publishing shows up as everything aged out, not as an unexplained zero);
 - deduplication: one line per address, keeping the highest weight, then the newest;
 - exact match only: translate compares whole values, so CIDR ranges cannot match; they are
   skipped and counted instead of silently pretending to cover something;
@@ -91,8 +92,13 @@ def render(attrs, weights, default_weight, now, max_age_days=MAX_AGE_DAYS):
         if old is None or (entry["weight"], entry["updated"]) > (old["weight"], old["updated"]):
             best[ip] = entry
     stats["indicators"] = len(best)
+
+    def by_address(item):  # IPv4 first, then IPv6; the two cannot be compared directly
+        address = ipaddress.ip_address(item[0])
+        return address.version, int(address)
+
     text = "".join(f"{json.dumps(ip)}: {json.dumps(json.dumps(e, sort_keys=True))}\n"
-                   for ip, e in sorted(best.items(), key=lambda kv: ipaddress.ip_address(kv[0])))
+                   for ip, e in sorted(best.items(), key=by_address))
     return text, stats
 
 
@@ -103,7 +109,7 @@ def write_atomic(path, text):
     tmp.replace(path)
 
 
-def fetch(max_age_days):
+def fetch():
     """Attributes from MISP as plain dicts. Imported here, so the tests need no MISP client."""
     import pymisp
 
@@ -112,8 +118,7 @@ def fetch(max_age_days):
     orgs = {str(o["Organisation"]["id"]): o["Organisation"]["name"]
             for o in misp.organisations(scope="all")}
     raw = misp.search(controller="attributes", type_attribute=TYPES, to_ids=True,
-                      enforce_warninglist=True, include_event_tags=True,
-                      timestamp=f"{max_age_days}d")
+                      enforce_warninglist=True, include_event_tags=True)
     out = []
     for a in raw.get("Attribute", []):
         event = a.get("Event", {})
@@ -126,7 +131,7 @@ def fetch(max_age_days):
 def main():
     weights, default = load_weights()
     now = datetime.now(timezone.utc)
-    text, stats = render(fetch(MAX_AGE_DAYS), weights, default, now)
+    text, stats = render(fetch(), weights, default, now)
     meta = {"pulled_at": now.isoformat(timespec="seconds"), "max_age_days": MAX_AGE_DAYS, **stats}
     if not text:
         meta["result"] = "empty pull: previous dictionary kept"

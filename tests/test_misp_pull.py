@@ -14,7 +14,7 @@ misp_pull = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(misp_pull)
 
 NOW = datetime(2026, 11, 20, 12, 0, tzinfo=timezone.utc)
-WEIGHTS = {"CIRCL": 1.0, "ORGNAME": 0.8}
+WEIGHTS = {"CIRCL": 1.0, "ADMIN": 0.8}
 
 
 def attr(value, event_id=7, org="CIRCL", days_old=1, type_="ip-dst", tlp="tlp:clear"):
@@ -34,10 +34,17 @@ def test_dictionary_is_valid_yaml_sorted_by_address():
     assert stats["indicators"] == 3
 
 
+def test_ipv4_and_ipv6_in_one_pull():
+    text, stats = misp_pull.render([attr("2001:db8::1"), attr("192.0.2.1"), attr("2001:DB8:0:0::2")],
+                                   WEIGHTS, 0.5, NOW)
+    assert list(parse(text)) == ["192.0.2.1", "2001:db8::1", "2001:db8::2"]
+    assert stats["indicators"] == 3
+
+
 def test_entry_carries_event_org_weight_and_tlp():
-    text, _ = misp_pull.render([attr("192.0.2.1", event_id=42, org="ORGNAME", tlp="tlp:green")],
+    text, _ = misp_pull.render([attr("192.0.2.1", event_id=42, org="ADMIN", tlp="tlp:green")],
                                WEIGHTS, 0.5, NOW)
-    assert parse(text)["192.0.2.1"] == {"event": 42, "category": "Network activity", "org": "ORGNAME",
+    assert parse(text)["192.0.2.1"] == {"event": 42, "category": "Network activity", "org": "ADMIN",
                                         "weight": 0.8, "tlp": "green", "updated": "2026-11-19"}
 
 
@@ -79,7 +86,7 @@ def test_empty_pull_never_replaces_the_dictionary(tmp_path, monkeypatch):
     out.write_text('"192.0.2.1": "{}"\n')
     monkeypatch.setattr(misp_pull, "OUT", out)
     monkeypatch.setattr(misp_pull, "META", meta)
-    monkeypatch.setattr(misp_pull, "fetch", lambda days: [])
+    monkeypatch.setattr(misp_pull, "fetch", lambda: [])
     with pytest.raises(SystemExit):
         misp_pull.main()
     assert out.read_text() == '"192.0.2.1": "{}"\n'
@@ -92,7 +99,7 @@ def test_a_pull_replaces_the_dictionary_atomically(tmp_path, monkeypatch):
     monkeypatch.setattr(misp_pull, "META", meta)
     recent = attr("192.0.2.5", days_old=0)
     recent["timestamp"] = str(int(datetime.now(timezone.utc).timestamp()))
-    monkeypatch.setattr(misp_pull, "fetch", lambda days: [recent])
+    monkeypatch.setattr(misp_pull, "fetch", lambda: [recent])
     misp_pull.main()
     assert list(parse(out.read_text())) == ["192.0.2.5"]
     assert not list(tmp_path.glob("*.tmp"))
