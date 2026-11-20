@@ -81,7 +81,10 @@ State after F5 (MISP and monitoring join the same picture in F6 and F7):
 - **Suricata** (`suricata/`, R-09): Suricata 8.0.7 replays the same captures with the same hardening as the detector and two local rules that count behaviour per source (ICMP sweep, many new SSH sessions). It runs only the rules in this repository; ET Open is not loaded, so payload attacks remain a gap.
 - **Sigma** (`rules/sigma/`, R-09): rules on Suricata's ECS events (a long DNS TXT answer; an SSH client of a guessing tool), converted to OpenSearch queries in `rules/opensearch/` and tested on real EVE lines run through the real pipeline, each with a positive sample and a near miss. Coverage before and after: `docs/evidence/R-09-coverage.md`.
 - **Episodes** (`detector/episodes.py`): the flow alerts grouped by attacking source, with a 120 s gap and the predicted families counted inside, so each fixture attack is one line for the analyst instead of the 2 to 5 that the dissertation's per-family tracker produced (R-08). It streams, so a live feed would group the same way.
-- **Alert path** (`logstash/`, `pipelines/`): Logstash OSS 8.19, pinned and built with the OpenSearch output plugin, tails the detector's output folder and maps alerts and episodes to ECS (`source.ip`, `destination.ip` and `.port`, `rule.name`, `event.*`, the model's score and window features under `mlids.*`). `@timestamp` is the flow's own time; the document id is a fingerprint, so a repeated replay overwrites instead of duplicating. A record that is not JSON or lacks a field the rules read goes to `mlids-error`. The same filters run in the pipeline tests and in the detection gate. Suricata's EVE output takes the same path through `pipelines/suricata.conf` into `suricata-*`. `make dashboards` imports the index patterns and four saved searches, one of them every sensor's results for one source.
+- **Alert path** (`logstash/`, `pipelines/`): Logstash OSS 8.19, pinned and built with the OpenSearch output plugin, tails the detector's output folder and maps alerts and episodes to ECS (`source.ip`, `destination.ip` and `.port`, `rule.name`, `event.*`, the model's score and window features under `mlids.*`). `@timestamp` is the flow's own time; the document id is a fingerprint, so a repeated replay overwrites instead of duplicating. A record that is not JSON or lacks a field the rules read goes to `mlids-error`. The same filters run in the pipeline tests and in the detection gate. Suricata's EVE output takes the same path through `pipelines/suricata.conf` into `suricata-*`.
+  - Every input line becomes exactly one document: on a clean stack, 20,079 lines in `out/` give 20,079 documents.
+  - Until F6 the Suricata mapping lost some records silently. A ruby filter variable named `e` is shared by every worker thread in logstash-filter-ruby, so records took each other's document id and overwrote each other: 510 of 9,880 on one ingest. The pipeline's gate results were not affected, because the gate reads the EVE files directly.
+  - `tests/test_suricata_ecs.py` now runs the mapping on four workers and forbids that variable name. `make dashboards` imports the index patterns and four saved searches, one of them every sensor's results for one source.
 
 ## 5. AI workflow
 
@@ -127,21 +130,24 @@ R-10: a lab host that talks to known-bad infrastructure scores low when the beha
   | any other record (a flow nothing alerted on) | yes | `labels.priority: medium`, `event.risk_score` 60 × weight |
   | any record | no | unchanged |
 
+- **GeoIP** (`geoip/`, the first filters of `pipelines/threat-intel.conf`): every public `source.ip` and `destination.ip` gets its country (`*.geo.country_iso_code`, `country_name`, `continent_name`) and autonomous system (`*.as.number`, `*.as.organization.name`).
+  - The data comes from the DB-IP Lite databases of 2026-11 (CC BY 4.0), committed compressed with their SHA-256 and unpacked by `make geoip` only after the hashes match.
+  - It is context, not a verdict: GeoIP never sets a priority or a tag. Private and documentation addresses stay untouched.
+  - Tested in `tests/test_enrichment.py`: `8.8.8.8` resolves to US and AS15169, and a lab address gets nothing. In the demonstration the indicator resolves to US, AS14061 DigitalOcean.
 - **Outcome** (`make ti-demo DEMO_IOC=162.243.103.246`, a Feodo command-and-control address marked TLP:CLEAR): the lab port scan is replayed with its attacker rewritten to the indicator, next to a slow HTTPS beacon to it (`enrichment/make_demo.py`, 15 sessions a minute apart).
 
   | Records touching the indicator | Count | Before | After |
   |---|---|---|---|
   | ML-IDS flow alerts of the scan | 4,100 | alert, no priority | high, risk 72 |
   | ML-IDS episode of the scan | 1 | alert, no priority | high, risk 72 |
-  | Suricata flows of the scan | 4,009 | flow, no priority | medium, risk 48 |
+  | Suricata flows of the scan | 4,125 | flow, no priority | medium, risk 48 |
   | Suricata flows of the beacon | 15 | flow, no priority; **no sensor alerted** | medium, risk 48 |
 
-  The same scan from its original address, 192.168.20.11, is in no feed. Its 11,463 records keep no priority and no tag. The beacon is the outcome that changes: the ML-IDS scores all 15 flows benign and no Suricata rule fires, yet the analyst sees them as medium, linked to a MISP event.
+  The same scan from its original address, 192.168.20.11, is in no feed. Its 11,773 records keep no priority and no tag. The beacon is the outcome that changes: the ML-IDS scores all 15 flows benign and no Suricata rule fires, yet the analyst sees them as medium, linked to a MISP event.
 - **Exposure** (`enrichment/shodan_exposure.py`, tested in `tests/test_shodan_exposure.py`): one lookup per run of the lab's own public address only. The address is printed masked and never committed. A free Shodan account has no host-API credits, so the lookup falls back to InternetDB, Shodan's free per-address service. First snapshot, 2026-11-20: the address is not indexed, and no open port is seen from the internet. `exposure/changes.json` records ports opened or closed since the previous run, for the F7 alert ExposureChanged.
 - **Not covered yet**:
   - domain and URL indicators;
   - CIDR indicators;
-  - GeoIP;
   - the F7 alerts IocFeedStale (dictionary older than 12 h) and ExposureChanged. Until then a stale feed shows only in `enrich/ioc_ip.meta.json`.
 
 Evidence: `docs/evidence/R-10-misp-matched.png`, `docs/evidence/R-10-beacon-medium.png`, `docs/evidence/R-10-clean-untouched.png`.

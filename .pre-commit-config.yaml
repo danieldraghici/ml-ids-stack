@@ -13,6 +13,7 @@ repos:
       - id: detect-private-key            # R-02
       - id: check-added-large-files       # keeps datasets, pcaps and models out of git (R-07)
         args: [--maxkb=5000]
+        exclude: ^geoip/dbip-[a-z]+-lite-\d{4}-\d{2}\.mmdb\.gz$   # GeoIP databases, hashed in geoip/SHA256SUMS
       - id: check-json
         exclude: ^\.devcontainer/devcontainer\.json$   # JSON with comments, allowed by the dev container spec
       - id: check-yaml

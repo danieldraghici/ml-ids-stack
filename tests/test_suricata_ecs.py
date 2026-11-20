@@ -4,6 +4,7 @@ The samples are real EVE lines Suricata wrote for the synthetic fixtures (tests/
 suricata_*.jsonl); the negative is a line that is not JSON.
 """
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -81,3 +82,31 @@ def test_every_record_has_a_stable_unique_id(events):
 def test_line_that_is_not_json_goes_to_the_error_index(events):
     (ev,) = events[0]["broken"]
     assert "_jsonparsefailure" in ev["tags"] and get(ev, "test.index") == "suricata-error"
+
+
+def test_document_ids_stay_unique_on_several_workers():
+    """Each EVE record keeps its own document id when the filters run on several threads (R-06).
+
+    A ruby filter variable named e was shared by all threads, so records took each other's id
+    and overwrote each other in OpenSearch; the stack runs one worker per core.
+    """
+    base = json.loads(sample("flow")[0])
+    lines = [json.dumps(dict(base, flow_id=10**15 + i, src_port=40000 + i % 20000)) for i in range(3000)]
+    events = run_pipeline(lines, "suricata", workers=4)
+    ids = {get(e, "test.doc_id") for e in events}
+    assert len(events) == 3000 and len(ids) == 3000
+
+
+def test_no_ruby_filter_uses_a_variable_named_e():
+    """logstash-filter-ruby shares a variable named e across events and threads (see suricata.conf)."""
+    for conf in (SAMPLES.parent.parent / "pipelines").glob("*.conf"):
+        for block in re.findall(r"code => '(.*?)'", conf.read_text(), flags=re.S):
+            assert not re.search(r"(?<![\w@\]])e\s*=[^=~]", block), f"{conf.name}: ruby variable e"
+
+
+def test_reused_port_keeps_two_flow_records():
+    """Two sessions on one reused source port share flow_id and timestamp, not flow.start (R-06)."""
+    base = json.loads(sample("flow")[0])
+    second = dict(base, flow=dict(base["flow"], start="2026-08-20T10:11:26.000000+0000"))
+    events = run_pipeline([json.dumps(base), json.dumps(second)], "suricata")
+    assert len({get(e, "test.doc_id") for e in events}) == 2
