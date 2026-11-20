@@ -1,6 +1,6 @@
 # Run from WSL2 Ubuntu (see docs/setup.md). Ports come from .env, the admin password from
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
-.PHONY: lint lint-ci test secrets pki up down single-node health dashboards tls model model-check model-release \
+.PHONY: lint lint-ci test review secrets pki up down single-node health dashboards tls model model-check model-release \
         detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate \n        misp-setup misp-up misp-down misp-pull exposure ti-demo geoip
 
 # Where the dissertation's model bundle lives on this machine (never committed, R-07).
@@ -36,6 +36,13 @@ test:
 
 # Decrypt the SOPS secrets into .env.secrets for compose; readable by the owner only. The MISP
 # and Shodan keys (secrets/intel.enc.yaml, F6) join when that file exists.
+# The automated pull-request review of the current branch against origin/main, printed instead
+# of posted (docs/review.md). The API key is decrypted into this one process only (R-02).
+review:
+	@test -f secrets/review.enc.yaml || { echo "secrets/review.enc.yaml is missing: docs/setup.md, section 8"; exit 1; }
+	git fetch -q origin main
+	sops exec-env secrets/review.enc.yaml '$(REVIEW_PYTHON) ci/review.py --local $(if $(BODY),--body-file "$(BODY)")'
+
 secrets:
 	@test -f .env || { echo ".env is missing: cp .env.example .env"; exit 1; }
 	umask 077 && { sops -d secrets/stack.enc.yaml; test ! -f secrets/intel.enc.yaml || sops -d secrets/intel.enc.yaml; } \
@@ -208,6 +215,7 @@ MISP_DIR ?= ../misp-docker
 MISP := docker compose --project-directory $(MISP_DIR)
 # MISP and Shodan clients live in their own virtual environment (requirements-intel.txt), outside CI.
 INTEL_PYTHON ?= $(HOME)/.venvs/intel/bin/python
+REVIEW_PYTHON ?= $(HOME)/.venvs/review/bin/python
 
 misp-setup:
 	MISP_DIR="$(MISP_DIR)" bash scripts/misp-setup.sh
