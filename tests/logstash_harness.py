@@ -15,11 +15,18 @@ FROM = re.search(r"^FROM\s+(\S+)", (ROOT / "logstash" / "Dockerfile").read_text(
 IMAGE = FROM.group(1)
 
 
-def run_pipeline(lines, pipeline="mlids", timeout=600):
-    """Feed lines (strings) through tests/harness + pipelines/<pipeline>.conf; return the events."""
+def run_pipeline(lines, pipeline="mlids", timeout=600, dictionary=None):
+    """Feed lines (strings) through tests/harness + pipelines/<pipeline>.conf; return the events.
+
+    With dictionary (a path to a translate dictionary), pipelines/threat-intel.conf runs after the
+    mapping, reading that file as /enrich/ioc_ip.yml, as it does in the stack.
+    """
     mounts = ["-v", f"{ROOT / 'tests' / 'harness' / '00-input.conf'}:/pipe/00-input.conf:ro",
               "-v", f"{ROOT / 'tests' / 'harness' / '99-output.conf'}:/pipe/99-output.conf:ro",
               "-v", f"{ROOT / 'pipelines' / (pipeline + '.conf')}:/pipe/10-{pipeline}.conf:ro"]
+    if dictionary is not None:
+        mounts += ["-v", f"{ROOT / 'pipelines' / 'threat-intel.conf'}:/pipe/20-threat-intel.conf:ro",
+                   "-v", f"{Path(dictionary).resolve()}:/enrich/ioc_ip.yml:ro"]
     cmd = ["docker", "run", "--rm", "-i", "--network", "none", "--hostname", "localhost",
            "-e", f"PIPELINE={pipeline}", *mounts, IMAGE,
            "logstash", "-f", "/pipe", "--log.level=error", "--pipeline.workers=1",

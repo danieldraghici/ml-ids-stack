@@ -32,16 +32,23 @@ lint-ci:
 test:
 	python3 -m pytest -q
 
-# Decrypt the SOPS secrets into .env.secrets for compose; readable by the owner only.
+# Decrypt the SOPS secrets into .env.secrets for compose; readable by the owner only. The MISP
+# and Shodan keys (secrets/intel.enc.yaml, F6) join when that file exists.
 secrets:
 	@test -f .env || { echo ".env is missing: cp .env.example .env"; exit 1; }
-	umask 077 && sops -d secrets/stack.enc.yaml | sed 's/: /=/' > .env.secrets
+	umask 077 && { sops -d secrets/stack.enc.yaml; test ! -f secrets/intel.enc.yaml || sops -d secrets/intel.enc.yaml; } \
+	  | sed 's/: /=/' > .env.secrets
 
 # Lab PKI: root and intermediate CA outside the repo, front-door certificate in certs/ (30 days).
 pki:
 	bash scripts/pki.sh
 
-up: secrets
+# Logstash refuses to start without its MISP dictionary; before the first make misp-pull it is an
+# empty file, which matches nothing (enrich/ is git-ignored, R-10).
+enrich/ioc_ip.yml:
+	@mkdir -p enrich && touch $@
+
+up: secrets enrich/ioc_ip.yml
 	@test -f certs/frontdoor.crt || { echo "no front-door certificate: run make pki"; exit 1; }
 	$(COMPOSE) up -d --build --wait
 	@$(MAKE) --no-print-directory single-node

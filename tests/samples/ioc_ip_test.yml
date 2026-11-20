@@ -1,0 +1,4 @@
+# Test dictionary for pipelines/threat-intel.conf, in the format enrichment/misp_pull.py writes.
+# Documentation addresses (RFC 5737) only: they can never be real indicators.
+"198.51.100.66": "{\"category\": \"Network activity\", \"event\": 4242, \"org\": \"CIRCL\", \"tlp\": \"clear\", \"updated\": \"2026-11-19\", \"weight\": 1.0}"
+"203.0.113.77": "{\"category\": \"Network activity\", \"event\": 77, \"org\": \"Someone\", \"tlp\": \"green\", \"updated\": \"2026-11-18\", \"weight\": 0.5}"
