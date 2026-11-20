@@ -182,7 +182,7 @@
             }
           },
           "enrichments": {
-            "type": "nested",
+            "type": "object",
             "properties": {
               "indicator": {
                 "properties": {

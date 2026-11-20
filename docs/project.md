@@ -119,7 +119,7 @@ R-10: a lab host that talks to known-bad infrastructure scores low when the beha
   - an empty pull never replaces the dictionary, which is written atomically.
 
   First pull, 2026-11-20: 60,445 attributes, 36,087 aged out and 12 CIDR ranges skipped, leaving 24,346 indicators. The dictionary (`enrich/`) and its counts are git-ignored live intelligence.
-- **Enrichment** (`pipelines/threat-intel.conf`, tested in `tests/test_enrichment.py` in the pinned Logstash): every ML-IDS and Suricata record looks up `source.ip` and `destination.ip`. A match writes `threat.enrichments` (indicator, MISP event, provider, confidence, TLP, matched field) and `threat.indicator.matched`, and adds the tag `threat_match`.
+- **Enrichment** (`pipelines/threat-intel.conf`, tested in `tests/test_enrichment.py` in the pinned Logstash): every ML-IDS and Suricata record looks up `source.ip` and `destination.ip`. A match writes `threat.enrichments` (indicator, MISP event, provider, confidence, TLP, matched field) and `threat.indicator.matched`, and adds the tag `threat_match`. `threat.enrichments` is mapped as an object rather than nested as ECS suggests: each record carries one enrichment, and Discover can filter only on non-nested fields.
 
   | Record | Match | Result |
   |---|---|---|
@@ -133,10 +133,10 @@ R-10: a lab host that talks to known-bad infrastructure scores low when the beha
   |---|---|---|---|
   | ML-IDS flow alerts of the scan | 4,100 | alert, no priority | high, risk 72 |
   | ML-IDS episode of the scan | 1 | alert, no priority | high, risk 72 |
-  | Suricata flows of the scan | 3,908 | flow, no priority | medium, risk 48 |
+  | Suricata flows of the scan | 4,009 | flow, no priority | medium, risk 48 |
   | Suricata flows of the beacon | 15 | flow, no priority; **no sensor alerted** | medium, risk 48 |
 
-  The same scan from its original address, 192.168.20.11, is in no feed. Its 11,790 records keep no priority and no tag. The beacon is the outcome that changes: the ML-IDS scores all 15 flows benign and no Suricata rule fires, yet the analyst sees them as medium, linked to a MISP event.
+  The same scan from its original address, 192.168.20.11, is in no feed. Its 11,463 records keep no priority and no tag. The beacon is the outcome that changes: the ML-IDS scores all 15 flows benign and no Suricata rule fires, yet the analyst sees them as medium, linked to a MISP event.
 - **Exposure** (`enrichment/shodan_exposure.py`, tested in `tests/test_shodan_exposure.py`): one lookup per run of the lab's own public address only. The address is printed masked and never committed. A free Shodan account has no host-API credits, so the lookup falls back to InternetDB, Shodan's free per-address service. First snapshot, 2026-11-20: the address is not indexed, and no open port is seen from the internet. `exposure/changes.json` records ports opened or closed since the previous run, for the F7 alert ExposureChanged.
 - **Not covered yet**:
   - domain and URL indicators;
