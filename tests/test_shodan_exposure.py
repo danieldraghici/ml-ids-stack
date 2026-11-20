@@ -24,6 +24,14 @@ def test_snapshot_keeps_only_comparable_fields():
     assert "banner noise" not in json.dumps(snap)
 
 
+def test_internetdb_answer_has_the_same_shape():
+    record = {"ip": IP, "ports": [443, 22], "vulns": ["CVE-2023-48795"], "tags": [], "hostnames": [], "cpes": []}
+    snap = exposure.snapshot(exposure.from_internetdb(record), IP, NOW)
+    assert snap["ports"] == [22, 443] and snap["vulns"] == ["CVE-2023-48795"]
+    assert snap["source"] == "InternetDB" and snap["services"] == []
+    assert exposure.changes(exposure.snapshot(HOST, IP, NOW), snap) == {"baseline": False, "opened": [], "closed": []}
+
+
 def test_not_indexed_is_a_valid_result():
     snap = exposure.snapshot(None, IP, NOW)
     assert snap["indexed"] is False and snap["ports"] == []
