@@ -6,9 +6,9 @@ Report a vulnerability privately to the repository owner (@danieldraghici). Do n
 
 ## Rules this repository enforces
 
-- Every change reaches `main` through a pull request with passing checks. The student reviews each branch before its pull request is opened and merges it personally; from F7 an automated review comes first, and it never approves (R-01).
+- Every change reaches `main` through a pull request with passing checks. The student reviews each branch before its pull request is opened and merges it personally; an automated review comes first, and it cannot approve (R-01, `docs/review.md`).
 - Secrets are never committed in plaintext. gitleaks runs before every commit and on the full history in the required CI check `lint`; real secrets live only as SOPS ciphertext under `secrets/` (R-02). GitHub secret scanning and push protection are not available on this personal private repository, so the CI scan is the server-side layer.
-- The AI agent works with the student's fine-grained token for this repository only, without administration, and never holds the student's own login. The pull-request reviewer is a separate GitHub App with one-hour tokens (R-03).
+- The AI agent works with the student's fine-grained token for this repository only, without administration, and never holds the student's own login. The pull-request reviewer is a separate GitHub App with one-hour tokens and no permission to approve (R-03).
 - The guard hook in `.claude/hooks/guard.py` blocks the agent from reading secrets, force pushing, pushing to `main`, merging or approving, and editing the detector threshold, models or regression fixtures (R-02, R-05, R-06).
 
 ## Key rotation runbook (R-02)
@@ -21,7 +21,8 @@ Rotate the key as soon as it may have left the machine: a gitleaks or push-prote
 | Shodan API key | `secrets/stack.enc.yaml` | shodan.io account page: reset API key; update with `sops`; redeploy |
 | OpenSearch admin password | `secrets/stack.enc.yaml` | update with `sops`; `make down && make up` (named volume is recreated) |
 | Agent fine-grained token | `~/.config/ml-ids-stack/agent-token` in WSL, mounted read-only in the dev container | Settings, Developer settings, Fine-grained tokens: revoke it, generate a new one with the same settings (`docs/credentials.md`), replace the file. It expires by itself after 30 days |
-| Reviewer GitHub App private key | `~/.config/ml-ids-stack-agent/app.pem` in WSL; an environment secret limited to `main` from F7 | App settings page, Private keys: generate a new key, delete the old one, replace the file and the secret. Tokens minted from the old key expire within one hour |
+| Reviewer GitHub App private key | `~/.config/ml-ids-stack-agent/app.pem` in WSL; secret `REVIEW_APP_KEY` of the environment `ai-review`, limited to `main` | App settings page, Private keys: generate a new key, delete the old one, replace the file and the secret. Tokens minted from the old key expire within one hour |
+| Claude API key of the reviewer | secret `ANTHROPIC_API_KEY` of the environment `ai-review`; `secrets/review.enc.yaml` for `make review` | Claude Console, API keys: create a new key, replace the secret (`gh secret set ANTHROPIC_API_KEY --env ai-review`) and the file (`sops secrets/review.enc.yaml`), then delete the old key. The workspace's monthly spend limit bounds what a leaked key can cost |
 | age private key | `~/.config/sops/age/keys.txt` in WSL, never in the repo | `age-keygen` a new key; put the new public key in `.sops.yaml`; `sops updatekeys secrets/*.enc.yaml`; rotate every secret above, since the old key could read them |
 
 Record each rotation in the pull request that closes the incident, citing R-02.

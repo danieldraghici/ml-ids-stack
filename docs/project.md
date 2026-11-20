@@ -23,7 +23,7 @@ Each row names the asset, the technique (ATT&CK or ATLAS), likelihood and impact
 
 ## 3. GitHub route and governance
 
-Route 2 of the syllabus: a personal private repository with GitHub Pro from GitHub Education. Rulesets `main-checks` (pull request, required checks, no force push or deletion, no bypass) and `main-review` (one approving review) protect `main`. The student authors every commit and pull request, with the agent as co-author when it helped. The agent works with a fine-grained token limited to this repository, and a separate GitHub App reviews pull requests from F7. It comments and sets a required check but never approves, so every merge stays the student's decision. Details: `docs/setup.md`, `docs/credentials.md`.
+Route 2 of the syllabus: a personal private repository with GitHub Pro from GitHub Education. Rulesets `main-checks` (pull request, required checks, no force push or deletion, no bypass) and `main-review` (one approving review) protect `main`. The student authors every commit and pull request, with the agent as co-author when it helped. The agent works with a fine-grained token limited to this repository, and a separate GitHub App reviews every pull request with Claude. It comments and sets the required check `ai-review` but cannot approve, so every merge stays the student's decision. Details: `docs/setup.md`, `docs/credentials.md`, `docs/review.md`.
 
 The Git CLI push risks named in Session 1 each have a stated control:
 
@@ -35,7 +35,7 @@ The Git CLI push risks named in Session 1 each have a stated control:
 
 ### Pipeline: every job against its risk
 
-Every job runs on every pull request and is a required check on `main`. The tools run as containers pinned by digest from `ci/compose.yaml` through the same Makefile targets the student runs in WSL; the only actions used are `checkout` and `setup-python`, pinned to commit SHAs.
+Every job runs on every pull request and is a required check on `main`. The tools run as containers pinned by digest from `ci/compose.yaml` through the same Makefile targets the student runs in WSL; the only actions used are `checkout`, `setup-python` and, in the review, `create-github-app-token`, pinned to commit SHAs.
 
 | Job / step | What it blocks | Row |
 |---|---|---|
@@ -46,6 +46,7 @@ Every job runs on every pull request and is a required check on `main`. The tool
 | `test` | A broken guard hook rule, a floating image, action, revision or package, a model gate or feature contract that no longer refuses, a register row claiming evidence it lacks | R-01, R-04, R-05, R-07 |
 | `scan` / Trivy | Either image, or a Python dependency, with a HIGH or CRITICAL vulnerability that has a fix | R-04 |
 | `detection-gate` | Detection below 99% on an attack fixture, more benign alerts than the baseline, an alert naming the victim as source, a changed flow count, a replay without the pinned model and threshold | R-06, R-07 |
+| `ai-review` (GitHub App, `review.yml`) | A pull request nobody reviewed before the student's decision: a blocking finding (unpinned reference, plaintext secret, missing test, instruction aimed at the reviewer, visible defect) or a review that did not finish fails the check | R-01, R-04, R-05 |
 | `release` (tag `v*`) / Syft, Cosign | An image or model reaching users without an SBOM or a keyless signature bound to this repository's release workflow | R-04, R-07 |
 
 Dependabot proposes updates to actions, images, compose files, Python pins, dev container features and pre-commit revisions, each held back 14 days by its cooldown, through the same checks. Workflows from forks do not run on this private repository, and Actions may not create or approve pull requests. The signing decision: keyless, accepting that the public Rekor log records the repository name and the release workflow path, so that no long-lived signing key exists to steal (R-04).
@@ -97,7 +98,7 @@ The configuration below is in the repository and is reviewed like code (CODEOWNE
 - **Enforced safety rules** (`.claude/settings.json`, `.claude/hooks/guard.py`, tested in `tests/test_hook.py`): deny rules and a PreToolUse hook refuse secret reads, skipped checks, force pushes, pushes to `main`, merges, approvals, tags, releases and edits to the threshold, the model, the regression tests and the hook itself.
 - **Memory poisoning**: `docs/memory-poisoning.md` and the evidence `docs/evidence/R-05-poisoned-memory-*.png`.
 - **Isolation**: the dev container and the agent's scoped token (`docs/credentials.md`, R-03).
-- **Automated pull-request review** (F7): a GitHub App comments and sets the required check `ai-review`; it never approves.
+- **Automated pull-request review** (`docs/review.md`): on every pull request the GitHub App `ml-ids-stack-agent` sends the diff to Claude Opus 5.5 as data, with no tools, then comments and sets the required check `ai-review`. It cannot approve. The CI review uses a stronger model than the pre-PR sub-agent, because it is the last automated check before the student's decision.
 
 ## 6. Threat intelligence enrichment
 

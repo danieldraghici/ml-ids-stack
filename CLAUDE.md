@@ -33,6 +33,7 @@ Plain English, active voice, short sentences. No em dashes, no filler, no market
 
 - `make lint`: pre-commit on all files; `make lint-ci`: ShellCheck, Hadolint, Semgrep, zizmor
 - `make test`: pytest
+- `make review`: the automated pull-request review of the current branch, printed (student, in WSL; `docs/review.md`)
 - `make scan`: Trivy on both images and the Python dependencies
 - `make gate`: replay the fixtures and compare with `tests/regression/baseline.json`
 - `make up`, `make down`, `make health`, `make tls`: the stack (student, in WSL)

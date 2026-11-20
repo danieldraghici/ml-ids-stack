@@ -129,3 +129,33 @@ The model reaches CI as an asset of the release `model-v1`, uploaded once by the
 ```bash
 python3 -m venv ~/.venvs/intel && ~/.venvs/intel/bin/pip install --require-hashes -r requirements-intel.txt
 ```
+
+## 8. Automated pull-request review (F7)
+
+How it works and why: `docs/review.md`. The student does these steps once, with their own `gh` login in WSL; the agent's token has no administration rights.
+
+1. **App permissions.** GitHub, Settings, Developer settings, GitHub Apps, `ml-ids-stack-agent`, Permissions & events. Repository permissions: Checks and Issues: Read and write; Contents and Pull requests: Read-only; Metadata: Read-only; everything else: No access. Then accept the new permissions on the installation (Settings, Applications, Installed GitHub Apps, `ml-ids-stack-agent`).
+2. **Environment `ai-review`**, usable from `main` only, with the App key, the Claude API key (from a Claude Console workspace with a monthly spend limit) and the App's Client ID (App settings page, General):
+
+   ```bash
+   R=repos/danieldraghici/ml-ids-stack
+   gh api -X PUT $R/environments/ai-review -F 'deployment_branch_policy[protected_branches]=false' -F 'deployment_branch_policy[custom_branch_policies]=true'
+   gh api -X POST $R/environments/ai-review/deployment-branch-policies -f name=main -f type=branch
+   gh secret set REVIEW_APP_KEY --env ai-review < ~/.config/ml-ids-stack-agent/app.pem
+   gh secret set ANTHROPIC_API_KEY --env ai-review          # prompts; the key is not echoed
+   gh variable set REVIEW_APP_CLIENT_ID --env ai-review --body <client-id>
+   ```
+
+3. **Ruleset**, only after the pull request that adds `review.yml` is merged (before that, `main` has no review workflow, so requiring `ai-review` would block that very pull request):
+
+   ```bash
+   ID=$(gh api repos/danieldraghici/ml-ids-stack/rulesets --jq '.[] | select(.name == "main-checks") | .id')
+   gh api -X PUT repos/danieldraghici/ml-ids-stack/rulesets/$ID --input .github/rulesets/main-checks.json
+   ```
+
+4. **Local review** (`make review`, optional `BODY=<file>` with the pull-request description):
+
+   ```bash
+   python3 -m venv ~/.venvs/review && ~/.venvs/review/bin/pip install --require-hashes -r requirements-review.txt
+   sops secrets/review.enc.yaml    # one line, ANTHROPIC_API_KEY: <key>; delete the template's example keys
+   ```
