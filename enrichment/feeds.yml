@@ -1,0 +1,7 @@
+# Trust weight per publishing organisation for enrichment/misp_pull.py (R-10).
+# A match's risk score is the base score for its priority times this weight, so a well-curated
+# feed raises a record further than an unknown source. Changes go through a reviewed PR.
+default_weight: 0.5
+weights:
+  CIRCL: 1.0                 # CIRCL OSINT Feed: curated, the one feed enabled (docs/misp-setup.md)
+  ORGNAME: 0.8               # the local MISP organisation: events the student creates by hand
