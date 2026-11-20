@@ -37,6 +37,9 @@ Plain English, active voice, short sentences. No em dashes, no filler, no market
 - `make gate`: replay the fixtures and compare with `tests/regression/baseline.json`
 - `make up`, `make down`, `make health`, `make tls`: the stack (student, in WSL)
 - `make model`, `make model-release`, `make replay PCAP=<fixture>`: the detector
+- `make suricata PCAP=<fixture>`: Suricata on one capture; `make fixtures-synthetic`: regenerate the synthetic captures
+- `make dashboards`: index patterns and saved searches into Dashboards
+- `make misp-up`, `make misp-pull`, `make exposure`, `make ti-demo DEMO_IOC=<address>`: MISP and Shodan enrichment (student, in WSL; `docs/misp-setup.md`)
 
 ## Workflow
 

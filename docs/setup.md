@@ -122,7 +122,10 @@ The CI jobs run the same Makefile targets, so a red check can be reproduced in W
 
 The model reaches CI as an asset of the release `model-v1`, uploaded once by the student (`gh release create model-v1 models/<model> --latest=false`). A release is cut by the student only: push a tag `vX.Y.Z` on `main`, and `.github/workflows/release.yml` scans and gates the images again, pushes them to GHCR, signs the image digests and the model with Cosign keyless and publishes the release with generated notes, the SBOMs, the model and its signature bundle. `make model-release` downloads the model of the latest release and keeps it only if `cosign verify-blob` proves it was signed by this repository's release workflow.
 
-## 7. Ahead of F6
+## 7. MISP and Shodan (F6)
 
-- Create a free Shodan account; the API key goes into `secrets/stack.enc.yaml` in F6.
-- Pull the misp-docker images in advance; they are several GB.
+`docs/misp-setup.md`: MISP on localhost (`make misp-up`), the first login, the feeds, the keys in `secrets/intel.enc.yaml`, then `make misp-pull`, `make exposure` and `make ti-demo`. The MISP and Shodan clients live in their own virtual environment:
+
+```bash
+python3 -m venv ~/.venvs/intel && ~/.venvs/intel/bin/pip install --require-hashes -r requirements-intel.txt
+```

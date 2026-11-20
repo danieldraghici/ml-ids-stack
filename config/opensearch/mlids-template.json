@@ -1,42 +1,235 @@
 {
-  "index_patterns": ["mlids-*"],
+  "index_patterns": [
+    "mlids-*"
+  ],
   "settings": {
     "number_of_shards": 1,
     "number_of_replicas": 0
   },
   "mappings": {
     "dynamic_templates": [
-      { "strings_as_keyword": { "match_mapping_type": "string", "mapping": { "type": "keyword", "ignore_above": 1024 } } }
+      {
+        "strings_as_keyword": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "keyword",
+            "ignore_above": 1024
+          }
+        }
+      }
     ],
     "properties": {
-      "@timestamp": { "type": "date" },
-      "event": { "properties": {
-        "kind": { "type": "keyword" }, "module": { "type": "keyword" }, "dataset": { "type": "keyword" },
-        "created": { "type": "date" }, "start": { "type": "date" }, "end": { "type": "date" },
-        "duration": { "type": "long" }
-      } },
-      "source": { "properties": { "ip": { "type": "ip" }, "port": { "type": "integer" } } },
-      "destination": { "properties": { "ip": { "type": "ip" }, "port": { "type": "integer" } } },
-      "related": { "properties": { "ip": { "type": "ip" } } },
-      "network": { "properties": { "protocol": { "type": "keyword" } } },
-      "rule": { "properties": { "name": { "type": "keyword" }, "ruleset": { "type": "keyword" } } },
-      "labels": { "properties": { "mode": { "type": "keyword" }, "capture": { "type": "keyword" } } },
-      "observer": { "properties": { "type": { "type": "keyword" }, "product": { "type": "keyword" } } },
-      "message": { "type": "text" },
-      "mlids": { "properties": {
-        "confidence": { "type": "float" },
-        "extractor": { "type": "keyword" },
-        "window": { "type": "object", "dynamic": true },
-        "episode": { "properties": {
-          "id": { "type": "keyword" },
-          "alerts": { "type": "integer" },
-          "destinations": { "type": "integer" },
-          "dst_ports": { "type": "integer" },
-          "ports": { "type": "integer" },
-          "duration_s": { "type": "float" },
-          "families": { "type": "flat_object" }
-        } }
-      } }
+      "@timestamp": {
+        "type": "date"
+      },
+      "event": {
+        "properties": {
+          "kind": {
+            "type": "keyword"
+          },
+          "module": {
+            "type": "keyword"
+          },
+          "dataset": {
+            "type": "keyword"
+          },
+          "created": {
+            "type": "date"
+          },
+          "start": {
+            "type": "date"
+          },
+          "end": {
+            "type": "date"
+          },
+          "duration": {
+            "type": "long"
+          },
+          "risk_score": {
+            "type": "float"
+          }
+        }
+      },
+      "source": {
+        "properties": {
+          "ip": {
+            "type": "ip"
+          },
+          "port": {
+            "type": "integer"
+          }
+        }
+      },
+      "destination": {
+        "properties": {
+          "ip": {
+            "type": "ip"
+          },
+          "port": {
+            "type": "integer"
+          }
+        }
+      },
+      "related": {
+        "properties": {
+          "ip": {
+            "type": "ip"
+          }
+        }
+      },
+      "network": {
+        "properties": {
+          "protocol": {
+            "type": "keyword"
+          }
+        }
+      },
+      "rule": {
+        "properties": {
+          "name": {
+            "type": "keyword"
+          },
+          "ruleset": {
+            "type": "keyword"
+          }
+        }
+      },
+      "labels": {
+        "properties": {
+          "mode": {
+            "type": "keyword"
+          },
+          "capture": {
+            "type": "keyword"
+          },
+          "priority": {
+            "type": "keyword"
+          }
+        }
+      },
+      "observer": {
+        "properties": {
+          "type": {
+            "type": "keyword"
+          },
+          "product": {
+            "type": "keyword"
+          }
+        }
+      },
+      "message": {
+        "type": "text"
+      },
+      "mlids": {
+        "properties": {
+          "confidence": {
+            "type": "float"
+          },
+          "extractor": {
+            "type": "keyword"
+          },
+          "window": {
+            "type": "object",
+            "dynamic": true
+          },
+          "episode": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              },
+              "alerts": {
+                "type": "integer"
+              },
+              "destinations": {
+                "type": "integer"
+              },
+              "dst_ports": {
+                "type": "integer"
+              },
+              "ports": {
+                "type": "integer"
+              },
+              "duration_s": {
+                "type": "float"
+              },
+              "families": {
+                "type": "flat_object"
+              }
+            }
+          }
+        }
+      },
+      "tags": {
+        "type": "keyword"
+      },
+      "threat": {
+        "properties": {
+          "framework": {
+            "type": "keyword"
+          },
+          "technique": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              }
+            }
+          },
+          "indicator": {
+            "properties": {
+              "matched": {
+                "type": "keyword"
+              }
+            }
+          },
+          "enrichments": {
+            "type": "object",
+            "properties": {
+              "indicator": {
+                "properties": {
+                  "ip": {
+                    "type": "ip"
+                  },
+                  "type": {
+                    "type": "keyword"
+                  },
+                  "provider": {
+                    "type": "keyword"
+                  },
+                  "reference": {
+                    "type": "keyword"
+                  },
+                  "confidence": {
+                    "type": "float"
+                  },
+                  "marking": {
+                    "properties": {
+                      "tlp": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "modified_at": {
+                    "type": "date"
+                  }
+                }
+              },
+              "matched": {
+                "properties": {
+                  "atomic": {
+                    "type": "keyword"
+                  },
+                  "field": {
+                    "type": "keyword"
+                  },
+                  "type": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

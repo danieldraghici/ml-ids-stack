@@ -1,7 +1,7 @@
 # Run from WSL2 Ubuntu (see docs/setup.md). Ports come from .env, the admin password from
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
 .PHONY: lint lint-ci test secrets pki up down single-node health dashboards tls model model-check model-release \
-        detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate
+        detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate \n        misp-setup misp-up misp-down misp-pull exposure ti-demo
 
 # Where the dissertation's model bundle lives on this machine (never committed, R-07).
 MODEL_SRC ?= /mnt/d/ML_IDS_Disertation/ML_IDS_Disertation/models/nfv3_window_xgb_latest.joblib
@@ -9,6 +9,8 @@ MODEL := $(shell jq -r .model detector/thresholds.json)
 # Release to take the signed model from (make model-release); empty means the latest release.
 MODEL_RELEASE ?=
 PCAP ?=
+# Folder of the capture, relative to the repository: the fixtures, or out/demo for make ti-demo.
+PCAP_DIR ?= tests/fixtures/pcaps
 FIXTURES := portscan.pcap slowloris.pcap hulk1_head.pcap benign_head.pcap \
             icmp_sweep.pcap ssh_bruteforce.pcap dns_txt.pcap near_misses.pcap
 
@@ -32,16 +34,23 @@ lint-ci:
 test:
 	python3 -m pytest -q
 
-# Decrypt the SOPS secrets into .env.secrets for compose; readable by the owner only.
+# Decrypt the SOPS secrets into .env.secrets for compose; readable by the owner only. The MISP
+# and Shodan keys (secrets/intel.enc.yaml, F6) join when that file exists.
 secrets:
 	@test -f .env || { echo ".env is missing: cp .env.example .env"; exit 1; }
-	umask 077 && sops -d secrets/stack.enc.yaml | sed 's/: /=/' > .env.secrets
+	umask 077 && { sops -d secrets/stack.enc.yaml; test ! -f secrets/intel.enc.yaml || sops -d secrets/intel.enc.yaml; } \
+	  | sed 's/: /=/' > .env.secrets
 
 # Lab PKI: root and intermediate CA outside the repo, front-door certificate in certs/ (30 days).
 pki:
 	bash scripts/pki.sh
 
-up: secrets
+# Logstash refuses to start without its MISP dictionary; before the first make misp-pull it is an
+# empty file, which matches nothing (enrich/ is git-ignored, R-10).
+enrich/ioc_ip.yml:
+	@mkdir -p enrich && touch $@
+
+up: secrets enrich/ioc_ip.yml
 	@test -f certs/frontdoor.crt || { echo "no front-door certificate: run make pki"; exit 1; }
 	$(COMPOSE) up -d --build --wait
 	@$(MAKE) --no-print-directory single-node
@@ -161,7 +170,7 @@ replay: detector
 	@test -n "$(PCAP)" || { echo "usage: make replay PCAP=portscan.pcap"; exit 1; }
 	@mkdir -p out
 	@rm -f out/$(basename $(PCAP)).alerts.jsonl out/$(basename $(PCAP)).episodes.jsonl out/$(basename $(PCAP)).status.json
-	$(HARDENED) -v "$$PWD/models:/models:ro" -v "$$PWD/tests/fixtures/pcaps:/pcaps:ro" -v "$$PWD/out:/out" \
+	$(HARDENED) -v "$$PWD/models:/models:ro" -v "$$PWD/$(PCAP_DIR):/pcaps:ro" -v "$$PWD/out:/out" \
 	  ml-ids-stack/detector:local "/pcaps/$(PCAP)"
 	$(HARDENED) -v "$$PWD/out:/out" --entrypoint python ml-ids-stack/detector:local \
 	  /app/episodes.py "/out/$(basename $(PCAP)).alerts.jsonl" "/out/$(basename $(PCAP)).episodes.jsonl"
@@ -174,7 +183,7 @@ suricata:
 	@mkdir -p out
 	@rm -f out/$(basename $(PCAP)).eve.json
 	$(TOOLS) --user "$$(id -u):$$(id -g)" suricata -c /src/suricata/suricata.yaml -S /src/suricata/rules/local.rules \
-	  -l /out -k none -r "/src/tests/fixtures/pcaps/$(PCAP)" --set "outputs.0.eve-log.filename=$(basename $(PCAP)).eve.json"
+	  -l /out -k none -r "/src/$(PCAP_DIR)/$(PCAP)" --set "outputs.0.eve-log.filename=$(basename $(PCAP)).eve.json"
 
 # The synthetic fixtures for the techniques the lab captures lack (R-09), byte-identical each run.
 fixtures-synthetic:
@@ -186,3 +195,43 @@ gate:
 	@for p in $(FIXTURES); do $(MAKE) --no-print-directory replay PCAP=$$p || exit 1; done
 	@for p in $(FIXTURES); do $(MAKE) --no-print-directory suricata PCAP=$$p >/dev/null || exit 1; done
 	REPLAY_OUT=out python3 -m pytest -q tests/regression
+
+# R-10, F6: MISP next to this repository (docs/misp-setup.md), on 127.0.0.1:8444 only.
+MISP_DIR ?= ../misp-docker
+MISP := docker compose --project-directory $(MISP_DIR)
+# MISP and Shodan clients live in their own virtual environment (requirements-intel.txt), outside CI.
+INTEL_PYTHON ?= $(HOME)/.venvs/intel/bin/python
+
+misp-setup:
+	MISP_DIR="$(MISP_DIR)" bash scripts/misp-setup.sh
+
+misp-up: misp-setup
+	$(MISP) up -d --wait
+
+misp-down:
+	$(MISP) down
+
+# Indicators from MISP into enrich/ioc_ip.yml (git-ignored), which Logstash rereads every five
+# minutes. The keys reach the script through the environment only; it prints counts, never them.
+misp-pull: secrets
+	@set -a; . ./.env.secrets; set +a; $(INTEL_PYTHON) enrichment/misp_pull.py
+	@jq -c '{pulled_at, result, indicators, attributes, aged_out, cidr_skipped, invalid}' enrich/ioc_ip.meta.json
+
+# One Shodan lookup of the own public address; prints it masked, writes exposure/ (git-ignored).
+exposure: secrets
+	@set -a; . ./.env.secrets; set +a; $(INTEL_PYTHON) enrichment/shodan_exposure.py
+
+# The enrichment demonstration (R-10): the lab port scan with its attacker rewritten to a MISP
+# indicator, and a quiet beacon to it, replayed through the ML-IDS and Suricata into out/.
+DEMO_IOC ?=
+ti-demo:
+	@test -n "$(DEMO_IOC)" || { echo "usage: make ti-demo DEMO_IOC=<an address from enrich/ioc_ip.yml>"; exit 1; }
+	@grep -qF '"$(DEMO_IOC)":' enrich/ioc_ip.yml || { echo "ti-demo: $(DEMO_IOC) is not in enrich/ioc_ip.yml"; exit 1; }
+	@mkdir -p out/demo
+	tcprewrite --pnat=192.168.20.11/32:$(DEMO_IOC)/32 --fixcsum \
+	  --infile=tests/fixtures/pcaps/portscan.pcap --outfile=out/demo/ti_portscan.pcap
+	python3 enrichment/make_demo.py "$(DEMO_IOC)" out/demo/ti_beacon.pcap
+	@for p in ti_portscan.pcap ti_beacon.pcap; do \
+	  $(MAKE) --no-print-directory replay PCAP=$$p PCAP_DIR=out/demo || exit 1; \
+	  $(MAKE) --no-print-directory suricata PCAP=$$p PCAP_DIR=out/demo >/dev/null || exit 1; \
+	done
