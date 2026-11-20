@@ -46,11 +46,29 @@ Images in use, recorded on 2026-11-20:
 4. Sync Actions, Feeds:
    - Load default feed metadata;
    - tick **CIRCL OSINT Feed**, then Enable selected and Enable caching for selected;
+   - edit **Feodo IP Blocklist** (abuse.ch, botnet command-and-control servers) and **blocklist.de/lists/all.txt** (addresses reported for attacks in the last 48 hours): tick Enabled and Caching enabled, and save;
    - Fetch and store all feed data.
 
-   The fetch runs in the background for several minutes. Events appear under Event Actions, List Events.
+   The fetch runs in the background for several minutes. Events appear under Event Actions, List Events; each CSV or freetext feed keeps one event, updated on every fetch.
+5. Mark both feed events TLP:CLEAR, since both lists are published openly:
+   - Event Actions, List Taxonomies: enable `tlp`, then open it and enable all its tags;
+   - open the event of each feed (`Feodo IP Blocklist feed`, `blocklist.de/lists/all.txt feed`), click `+` next to Tags, choose the taxonomy `tlp` and the tag `tlp:clear`.
 
-Feed in use: CIRCL OSINT Feed (`https://www.circl.lu/doc/misp/feed-osint`), first fetched on the date recorded by `make misp-pull` in `enrich/ioc_ip.meta.json`.
+   The tag stays on the event when the feed is fetched again. `misp_pull.py` records it per indicator, and screenshots show only indicators marked clear.
+6. Input Filters, List Warninglists: enable the lists of addresses that must never be treated as indicators. `misp_pull.py` asks MISP to drop every attribute on an enabled list (`enforce_warninglist`), so with none enabled that check does nothing:
+   - List of RFC 1918 CIDR blocks, List of RFC 5735 CIDR blocks, List of RFC 6598 CIDR blocks, List of RFC 5771 multicast CIDR blocks;
+   - List of known IPv4 public DNS resolvers;
+   - List of known Akamai IP ranges, List of known Amazon AWS IP address ranges, List of known Cloudflare IP ranges, List of known Fastly IP address ranges, List of known GCP (Google Cloud Platform) IP address ranges, List of known Microsoft Azure Datacenter IP Ranges.
+
+Feeds in use:
+
+| Feed | Publisher | Why |
+|---|---|---|
+| CIRCL OSINT Feed | CIRCL | curated analyst reports; its IP indicators are from 2014 to 2020, so the 30-day age-out drops them all, which the meta file shows |
+| Feodo IP Blocklist | abuse.ch | active botnet command-and-control servers: what the beacon demonstration contacts |
+| blocklist.de/lists/all.txt | blocklist.de | addresses reported for scans and brute force in the last 48 hours: what the port scan demonstration comes from |
+
+CSV and freetext feeds are stored under the local MISP organisation, so their weight in `enrichment/feeds.yml` is the one of `ADMIN`, the organisation misp-docker creates. `make misp-pull` records the date of each pull in `enrich/ioc_ip.meta.json`.
 
 ## 3. The keys, encrypted
 
@@ -64,7 +82,7 @@ Enter the following, then save (sops encrypts on save; no plaintext copy touches
 MISP_URL: https://localhost:8444
 MISP_KEY: <the read-only MISP auth key>
 MISP_CA: /home/<you>/misp-docker/certs-local/cert.pem
-SHODAN_KEY: <your Shodan API key, from https://account.shodan.io>
+SHODAN_KEY: <your Shodan API key, from https://account.shodan.io>   # a free account is enough
 OWN_PUBLIC_IP: <your own public IPv4 address>
 ```
 
@@ -77,5 +95,7 @@ make misp-pull              # indicators into enrich/ioc_ip.yml; prints counts o
 make exposure               # one Shodan lookup of the own address; prints it masked
 make ti-demo DEMO_IOC=<an address from enrich/ioc_ip.yml whose event is TLP:CLEAR>
 ```
+
+A free Shodan account has no credits for the host API, which answers 403. `make exposure` then asks InternetDB (`internetdb.shodan.io`), Shodan's free per-address service built on the same scans: open ports, known CVEs and tags, without banners. The snapshot names the source that answered.
 
 With the stack up (`make up`), Logstash rereads `enrich/ioc_ip.yml` every five minutes and ingests the demo replays from `out/`. `docs/project.md` (section 6) describes the outcome rule and the evidence.

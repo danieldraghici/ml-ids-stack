@@ -98,7 +98,53 @@ The configuration below is in the repository and is reviewed like code (CODEOWNE
 
 ## 6. Threat intelligence enrichment
 
-*To write in F6*: MISP feeds and their lifecycle, the Logstash translate enrichment, the priority rule, Shodan exposure for the lab's own IP, and the evidence that enrichment changes an outcome.
+R-10: a lab host that talks to known-bad infrastructure scores low when the behaviour looks normal, such as a slow HTTPS beacon. Setup, feeds and rules of engagement are in `docs/misp-setup.md`.
+
+- **MISP** (`misp/`, `scripts/misp-setup.sh`): misp-docker at a pinned commit, cloned next to this repository, every image pinned by digest, listening on 127.0.0.1 only. The client trusts exactly MISP's localhost certificate, and its API key is read-only and kept in `secrets/intel.enc.yaml` (SOPS, R-02).
+- **Feeds**:
+
+  | Feed | Publisher in MISP | Weight | Role |
+  |---|---|---|---|
+  | CIRCL OSINT Feed | CIRCL | 1.0 | curated reports. Its IP indicators date from 2014 to 2020, so all of them age out |
+  | Feodo IP Blocklist (abuse.ch) | ADMIN | 0.8 | active botnet command-and-control servers |
+  | blocklist.de | ADMIN | 0.8 | addresses reported for scans and brute force in the last 48 hours |
+
+  Both open lists are marked `tlp:clear` on their MISP events. Eleven warninglists are enabled: private, special-use and multicast ranges, public DNS resolvers and the large cloud and CDN providers.
+- **Lifecycle** (`enrichment/misp_pull.py`, tested in `tests/test_misp_pull.py`):
+  - only attributes flagged `to_ids`, minus warninglist hits;
+  - trust weighted by the publishing organisation (`enrichment/feeds.yml`);
+  - a 30-day age-out, applied and counted locally;
+  - one entry per address, IPv4 and IPv6;
+  - CIDR ranges skipped and counted, since the translate filter matches exact values;
+  - an empty pull never replaces the dictionary, which is written atomically.
+
+  First pull, 2026-11-20: 60,445 attributes, 36,087 aged out and 12 CIDR ranges skipped, leaving 24,346 indicators. The dictionary (`enrich/`) and its counts are git-ignored live intelligence.
+- **Enrichment** (`pipelines/threat-intel.conf`, tested in `tests/test_enrichment.py` in the pinned Logstash): every ML-IDS and Suricata record looks up `source.ip` and `destination.ip`. A match writes `threat.enrichments` (indicator, MISP event, provider, confidence, TLP, matched field) and `threat.indicator.matched`, and adds the tag `threat_match`.
+
+  | Record | Match | Result |
+  |---|---|---|
+  | sensor alert (ML-IDS alert or episode, Suricata alert) | yes | `labels.priority: high`, `event.risk_score` 90 × weight |
+  | any other record (a flow nothing alerted on) | yes | `labels.priority: medium`, `event.risk_score` 60 × weight |
+  | any record | no | unchanged |
+
+- **Outcome** (`make ti-demo DEMO_IOC=162.243.103.246`, a Feodo command-and-control address marked TLP:CLEAR): the lab port scan is replayed with its attacker rewritten to the indicator, next to a slow HTTPS beacon to it (`enrichment/make_demo.py`, 15 sessions a minute apart).
+
+  | Records touching the indicator | Count | Before | After |
+  |---|---|---|---|
+  | ML-IDS flow alerts of the scan | 4,100 | alert, no priority | high, risk 72 |
+  | ML-IDS episode of the scan | 1 | alert, no priority | high, risk 72 |
+  | Suricata flows of the scan | 3,908 | flow, no priority | medium, risk 48 |
+  | Suricata flows of the beacon | 15 | flow, no priority; **no sensor alerted** | medium, risk 48 |
+
+  The same scan from its original address, 192.168.20.11, is in no feed. Its 11,790 records keep no priority and no tag. The beacon is the outcome that changes: the ML-IDS scores all 15 flows benign and no Suricata rule fires, yet the analyst sees them as medium, linked to a MISP event.
+- **Exposure** (`enrichment/shodan_exposure.py`, tested in `tests/test_shodan_exposure.py`): one lookup per run of the lab's own public address only. The address is printed masked and never committed. A free Shodan account has no host-API credits, so the lookup falls back to InternetDB, Shodan's free per-address service. First snapshot, 2026-11-20: the address is not indexed, and no open port is seen from the internet. `exposure/changes.json` records ports opened or closed since the previous run, for the F7 alert ExposureChanged.
+- **Not covered yet**:
+  - domain and URL indicators;
+  - CIDR indicators;
+  - GeoIP;
+  - the F7 alerts IocFeedStale (dictionary older than 12 h) and ExposureChanged. Until then a stale feed shows only in `enrich/ioc_ip.meta.json`.
+
+Evidence: `docs/evidence/R-10-misp-matched.png`, `docs/evidence/R-10-beacon-medium.png`, `docs/evidence/R-10-clean-untouched.png`.
 
 ## 7. Demonstration
 
