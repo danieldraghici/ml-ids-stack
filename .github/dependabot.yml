@@ -20,7 +20,7 @@ updates:
       default-days: 14
 
   - package-ecosystem: docker-compose
-    directories: ["/", "/ci"]
+    directories: ["/", "/ci", "/misp"]
     schedule:
       interval: weekly
     cooldown:

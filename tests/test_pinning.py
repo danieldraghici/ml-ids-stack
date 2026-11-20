@@ -32,7 +32,7 @@ def test_dockerfile_base_images_pinned_by_digest(path):
         assert DIGEST.search(image), f"{rel(path)}: {image} is not pinned by digest"
 
 
-@pytest.mark.parametrize("path", [ROOT / "compose.yaml", ROOT / "ci" / "compose.yaml"], ids=rel)
+@pytest.mark.parametrize("path", [ROOT / "compose.yaml", ROOT / "ci" / "compose.yaml", ROOT / "misp" / "compose.override.yaml"], ids=rel)
 def test_compose_images_pinned_by_digest(path):
     services = yaml.safe_load(path.read_text())["services"]
     for name, svc in services.items():

@@ -1,0 +1,25 @@
+# MISP for this project (R-10), on top of misp-docker at commit 27ec05e (2026-11-04), cloned
+# next to this repository by `make misp-setup`, never inside it. misp-docker names its images by
+# floating tags (latest, valkey:7.2); this override pins every one by tag and digest. All builds
+# are from 2026-11-04 or older, past the 14-day cooldown: MISP core 2.5.51, modules 3.1.3.
+# Ports, URL and the internal database and cache passwords live in misp-docker/.env, written
+# by make misp-setup: MISP answers only on 127.0.0.1:8444.
+services:
+  mail:
+    image: ghcr.io/egos-tech/smtp:2.0.12@sha256:c7577b21872f785ffdc9f4403938322cc424055c771621586bec60a05745d312
+  redis:
+    image: ghcr.io/valkey-io/valkey:7.2@sha256:edf27a750238c2a8be56d6c365d21930926cfee23385efe88cc6df9df2c911a1
+  db:
+    image: ghcr.io/mariadb/mariadb:10.11@sha256:c22d749c07c6d2b3b5827074d7a54c97ebada20a69c491efef819b8c1ecaa96f
+  misp-core:
+    image: ghcr.io/misp/misp-docker/misp-core:27ec05e@sha256:03c0b1d0b9e2e3c8261b987e9e911e8efec139d0ece4337285e5175b68817a31
+  misp-nginx:
+    image: ghcr.io/misp/misp-docker/misp-nginx:27ec05e@sha256:a287c9e845d9d45127f1f5fb77df29a04f76e9f837993cc7bac7bee520c5354a
+    # A localhost certificate made by make misp-setup; enrichment/misp_pull.py trusts exactly this
+    # certificate (MISP_CA), so the API key never goes over an unverified connection.
+    volumes:
+      - "./certs-local:/etc/nginx/certs:ro"
+  misp-modules:
+    image: ghcr.io/misp/misp-docker/misp-modules:27ec05e@sha256:b83285a8ee01905fad1c89c9b8c8496595460ab57737a91886c724182673b6ba
+  misp-guard:
+    image: ghcr.io/misp/misp-docker/misp-guard:27ec05e@sha256:6ce5eaa2bfcc885441d5816a180e6ef6646acffbd9a6cb40127bb8722fab6104
