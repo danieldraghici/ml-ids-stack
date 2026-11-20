@@ -15,9 +15,10 @@ FROM = re.search(r"^FROM\s+(\S+)", (ROOT / "logstash" / "Dockerfile").read_text(
 IMAGE = FROM.group(1)
 
 
-def run_pipeline(lines, pipeline="mlids", timeout=600, dictionary=None):
+def run_pipeline(lines, pipeline="mlids", timeout=600, dictionary=None, workers=1):
     """Feed lines (strings) through tests/harness + pipelines/<pipeline>.conf; return the events.
 
+    workers > 1 runs the filters on several threads, as the stack does, to catch shared state.
     With dictionary (a path to a translate dictionary), pipelines/threat-intel.conf runs after the
     mapping, reading that file as /enrich/ioc_ip.yml, as it does in the stack.
     """
@@ -29,7 +30,7 @@ def run_pipeline(lines, pipeline="mlids", timeout=600, dictionary=None):
                    "-v", f"{Path(dictionary).resolve()}:/enrich/ioc_ip.yml:ro"]
     cmd = ["docker", "run", "--rm", "-i", "--network", "none", "--hostname", "localhost",
            "-e", f"PIPELINE={pipeline}", *mounts, IMAGE,
-           "logstash", "-f", "/pipe", "--log.level=error", "--pipeline.workers=1",
+           "logstash", "-f", "/pipe", "--log.level=error", f"--pipeline.workers={workers}",
            "--pipeline.ecs_compatibility=v8"]
     out = subprocess.run(cmd, input="".join(l.rstrip("\n") + "\n" for l in lines),
                          capture_output=True, text=True, timeout=timeout, check=True).stdout
