@@ -40,3 +40,6 @@ out/
 # Live threat intelligence and the own public address: never in git (R-10)
 enrich/
 exposure/
+
+# GeoIP databases unpacked by make geoip; the compressed ones are committed (R-10)
+geoip/*.mmdb

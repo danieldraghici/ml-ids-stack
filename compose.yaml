@@ -58,7 +58,7 @@ services:
   # ML-IDS alerts and episodes into OpenSearch as ECS (R-06, R-08, F5). Built from
   # logstash/Dockerfile (Logstash OSS pinned by digest + the OpenSearch output plugin). It reads
   # the detector's out/ folder read-only and publishes no port. enrich/ holds the MISP dictionary
-  # (make misp-pull, F6), also read-only.
+  # (make misp-pull, F6) and geoip/ the GeoIP databases (make geoip), both read-only.
   logstash:
     build: logstash
     image: ml-ids-stack/logstash:local
@@ -70,6 +70,7 @@ services:
       - ./config/opensearch:/usr/share/logstash/templates:ro
       - ./out:/data:ro
       - ./enrich:/enrich:ro
+      - ./geoip:/geoip:ro
       - logstash-data:/usr/share/logstash/data
     healthcheck:
       test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:9600/"]

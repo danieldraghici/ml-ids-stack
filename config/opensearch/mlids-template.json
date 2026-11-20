@@ -57,6 +57,33 @@
           },
           "port": {
             "type": "integer"
+          },
+          "geo": {
+            "properties": {
+              "country_iso_code": {
+                "type": "keyword"
+              },
+              "country_name": {
+                "type": "keyword"
+              },
+              "continent_name": {
+                "type": "keyword"
+              }
+            }
+          },
+          "as": {
+            "properties": {
+              "number": {
+                "type": "long"
+              },
+              "organization": {
+                "properties": {
+                  "name": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -67,6 +94,33 @@
           },
           "port": {
             "type": "integer"
+          },
+          "geo": {
+            "properties": {
+              "country_iso_code": {
+                "type": "keyword"
+              },
+              "country_name": {
+                "type": "keyword"
+              },
+              "continent_name": {
+                "type": "keyword"
+              }
+            }
+          },
+          "as": {
+            "properties": {
+              "number": {
+                "type": "long"
+              },
+              "organization": {
+                "properties": {
+                  "name": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
           }
         }
       },

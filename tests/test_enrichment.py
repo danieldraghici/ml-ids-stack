@@ -73,3 +73,26 @@ def test_clean_records_are_untouched(mlids, suricata):
 def test_enrichment_runs_after_every_mapping():
     filters = sorted(p.name for p in (ROOT / "pipelines").glob("*.conf") if not p.name[:2].isdigit())
     assert filters[-1] == "threat-intel.conf", filters
+
+
+# GeoIP: a public address gets its country and autonomous system; private ones get nothing.
+PUBLIC = "8.8.8.8"   # Google Public DNS: a stable, well-known allocation
+
+
+@pytest.fixture(scope="module")
+def geo():
+    return run_pipeline([ml(PUBLIC), ml(ML_ALERT["src_ip"])], "mlids", dictionary=DICT)
+
+
+def test_public_address_gets_country_and_asn(geo):
+    public = next(e for e in geo if get(e, "source.ip") == PUBLIC)
+    assert get(public, "source.geo.country_iso_code") == "US"
+    assert get(public, "source.as.number") == 15169
+    assert "Google" in get(public, "source.as.organization.name")
+    assert "threat_match" not in (public.get("tags") or [])   # context only, not a verdict
+
+
+def test_private_address_gets_no_geo_and_no_failure_tag(geo):
+    private = next(e for e in geo if get(e, "source.ip") == ML_ALERT["src_ip"])
+    assert get(private, "source.geo") is None and get(private, "source.as") is None
+    assert not any("geoip" in t for t in (private.get("tags") or []))

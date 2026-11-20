@@ -1,7 +1,7 @@
 # Run from WSL2 Ubuntu (see docs/setup.md). Ports come from .env, the admin password from
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
 .PHONY: lint lint-ci test secrets pki up down single-node health dashboards tls model model-check model-release \
-        detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate \n        misp-setup misp-up misp-down misp-pull exposure ti-demo
+        detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate \n        misp-setup misp-up misp-down misp-pull exposure ti-demo geoip
 
 # Where the dissertation's model bundle lives on this machine (never committed, R-07).
 MODEL_SRC ?= /mnt/d/ML_IDS_Disertation/ML_IDS_Disertation/models/nfv3_window_xgb_latest.joblib
@@ -50,7 +50,13 @@ pki:
 enrich/ioc_ip.yml:
 	@mkdir -p enrich && touch $@
 
-up: secrets enrich/ioc_ip.yml
+# GeoIP databases (R-10, geoip/README.md): unpacked for Logstash only after their SHA-256 matches.
+GEOIP_MONTH := 2026-11
+geoip:
+	@cd geoip && sha256sum --check --quiet SHA256SUMS
+	@for k in country asn; do gunzip -c geoip/dbip-$$k-lite-$(GEOIP_MONTH).mmdb.gz > geoip/dbip-$$k-lite.mmdb; done
+
+up: secrets enrich/ioc_ip.yml geoip
 	@test -f certs/frontdoor.crt || { echo "no front-door certificate: run make pki"; exit 1; }
 	$(COMPOSE) up -d --build --wait
 	@$(MAKE) --no-print-directory single-node

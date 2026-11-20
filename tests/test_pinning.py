@@ -104,3 +104,14 @@ def test_trivy_scans_every_requirements_file():
     assert len(files) >= 3
     for f in files:
         assert f.name == "requirements.txt" or re.fullmatch(pattern.group(1), f.name), f"{f} is not scanned"
+
+
+def test_geoip_databases_match_their_hashes():
+    """The committed GeoIP databases are exactly the ones recorded in geoip/SHA256SUMS (R-10)."""
+    import hashlib
+    lines = [l.split() for l in (ROOT / "geoip" / "SHA256SUMS").read_text().splitlines() if l.strip()]
+    assert {n for _, n in lines} == {p.name for p in (ROOT / "geoip").glob("*.mmdb.gz")}
+    for digest, name in lines:
+        assert hashlib.sha256((ROOT / "geoip" / name).read_bytes()).hexdigest() == digest
+    month = re.search(r"^GEOIP_MONTH := (\S+)$", (ROOT / "Makefile").read_text(), flags=re.M).group(1)
+    assert all(month in n for _, n in lines)
