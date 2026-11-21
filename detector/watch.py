@@ -139,6 +139,18 @@ def beat(out_dir: str, state: dict, now: float | None = None) -> None:
     os.replace(tmp, os.path.join(out_dir, HEARTBEAT))
 
 
+def beat_or_report(out_dir: str, state: dict) -> bool:
+    """One heartbeat; a failed write is reported and tried again on the next beat, never fatal.
+    While it fails the heartbeat ages and SensorDown fires, which is the right signal; Docker
+    Desktop can start the container before the WSL folder behind out/ is mounted."""
+    try:
+        beat(out_dir, state)
+        return True
+    except OSError as err:
+        print(f"watch: heartbeat not written: {err}", flush=True)
+        return False
+
+
 def main() -> int:
     state = {"processed": 0, "failed": 0, "current": None, "last": None}
     progress = [time.time()]
@@ -148,7 +160,7 @@ def main() -> int:
         while True:
             with lock:
                 if alive(progress[0], time.time()):
-                    beat(OUT_DIR, state)
+                    beat_or_report(OUT_DIR, state)
             time.sleep(BEAT_S)
 
     threading.Thread(target=beater, daemon=True).start()

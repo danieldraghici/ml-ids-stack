@@ -24,6 +24,7 @@ One exporter written here replaces an OpenSearch exporter, a Logstash exporter a
 | `mlids_indexed_documents{pipeline}` | `_count` of `mlids-*` and `suricata-*` in OpenSearch, error indices included |
 | `opensearch_up`, `opensearch_cluster_status` | `_cluster/health`: 0 green, 1 yellow, 2 red |
 | `logstash_up` | the Logstash monitoring API answers |
+| `mlids_episodes_written` | lines of `out/*.episodes.jsonl`: alert episodes, one per attacking source and gap |
 | `mlids_ioc_dictionary_timestamp_seconds`, `mlids_ioc_indicators` | `enrich/ioc_ip.meta.json`: when the MISP dictionary in use was written (an empty pull keeps the old date) and its size |
 | `mlids_ioc_last_pull_timestamp_seconds` | the same file: the last pull, written or empty |
 | `mlids_exposure_checked_timestamp_seconds`, `mlids_exposure_ports_opened`, `_closed` | `exposure/changes.json`: the last check of the lab's public address. Counts and times only; the address never becomes a metric (R-10) |
@@ -39,6 +40,7 @@ A source that does not answer gets 0 in its `_up` metric and its other metrics a
 | PipelineStalled (`records-not-indexed`) | records in `out/` are not all in OpenSearch, per pipeline | 5 min |
 | OpenSearchDown | OpenSearch does not answer, or the cluster is red | 1 min |
 | ExporterDown | Prometheus cannot scrape the exporter; without it the other alerts are blind | 1 min |
+| AlertBudgetExceeded (R-08) | more than 1 alert episode in the last hour, the budget the threshold is calibrated against. Replaying attack fixtures fires it too: attacks also spend the analyst's attention | at once |
 | IocFeedStale (R-10) | the MISP dictionary in use is over 12 h old, or there is none | 10 min |
 | ExposureChanged (R-10) | the last weekly check found a port open that was closed the week before | at once |
 | ExposureCheckStale (R-10) | the weekly exposure check has not run for 8 days, or never | 10 min |

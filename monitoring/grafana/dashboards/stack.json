@@ -1,16 +1,17 @@
 {
   "uid": "ml-ids-stack",
   "title": "ML-IDS stack health",
-  "description": "Sensor heartbeat, pipeline gap, OpenSearch health and threat-intel freshness of the detection stack, with the alerts of monitoring/alerts.yml (R-06, R-10).",
+  "description": "Sensor heartbeat, pipeline gap, OpenSearch health and threat-intel freshness of the detection stack, with the alerts of monitoring/alerts.yml (R-06, R-08, R-10).",
   "tags": [
     "ml-ids",
     "R-06",
+    "R-08",
     "R-10"
   ],
   "timezone": "browser",
   "refresh": "10s",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 4,
   "editable": false,
   "time": {
     "from": "now-30m",
@@ -477,6 +478,54 @@
           "calcs": [
             "lastNotNull"
           ]
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Alert episodes per hour (budget 1)",
+      "description": "Episodes the detector wrote in the last hour. AlertBudgetExceeded fires above the budget the threshold is calibrated against (R-08).",
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mlids_episodes_written - min_over_time(mlids_episodes_written[1h])",
+          "legendFormat": "episodes in the last hour"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1.5
+              }
+            ]
+          }
         }
       }
     }

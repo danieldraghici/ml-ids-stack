@@ -6,6 +6,7 @@ a file exporter from third parties: less to pin and patch (R-04), and every metr
 (tests/test_monitoring.py). Each scrape of /metrics reads:
 
 - the detector's heartbeat (out/heartbeat.json, detector/watch.py): SensorDown;
+- the alert episodes the detector wrote: AlertBudgetExceeded (R-08);
 - the records the sensors wrote (lines of out/*.alerts.jsonl and *.episodes.jsonl for the
   ML-IDS, out/*.eve.json for Suricata, the same files Logstash reads) and the documents
   OpenSearch holds for each: PipelineStalled when records stay unindexed. This gap is the
@@ -127,6 +128,8 @@ def collect(out_dir: str, os_get, ls_get, enrich_dir: str = ENRICH_DIR,
         samples.append(("mlids_detector_heartbeat_timestamp_seconds", {}, beat["ts"]))
         samples.append(("mlids_detector_captures_processed", {}, beat.get("processed", 0)))
         samples.append(("mlids_detector_captures_failed", {}, beat.get("failed", 0)))
+    episodes, _ = count_lines(sorted(glob.glob(os.path.join(out_dir, "*.episodes.jsonl"))))
+    samples.append(("mlids_episodes_written", {}, episodes))
     for name, (n, unreadable) in out_records(out_dir).items():
         samples.append(("mlids_out_records", {"pipeline": name}, n))
         samples.append(("mlids_out_unreadable_files", {"pipeline": name}, unreadable))
@@ -156,6 +159,7 @@ HELP = {
     "mlids_detector_captures_processed": "Captures the running detector replayed since it started.",
     "mlids_detector_captures_failed": "Captures the running detector refused or failed on since it started.",
     "mlids_out_records": "Records the sensors wrote to out/, as Logstash reads them.",
+    "mlids_episodes_written": "Alert episodes in out/*.episodes.jsonl (one per attacking source and gap).",
     "mlids_out_unreadable_files": "Files in out/ the exporter could not read; their records are not counted.",
     "mlids_indexed_documents": "Documents in OpenSearch for each pipeline, error indices included.",
     "opensearch_up": "1 if OpenSearch answered the cluster health request.",
