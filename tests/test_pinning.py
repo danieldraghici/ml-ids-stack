@@ -85,7 +85,10 @@ def requirements(path):
     return out
 
 
-@pytest.mark.parametrize("path", [ROOT / "requirements-dev.txt", ROOT / "detector" / "requirements.txt"], ids=rel)
+REQUIREMENTS = [p for p in files("**/requirements*.txt") if "out" not in p.relative_to(ROOT).parts]
+
+
+@pytest.mark.parametrize("path", REQUIREMENTS, ids=rel)
 def test_requirements_pinned_exactly_with_hashes(path):
     reqs = requirements(path)
     assert reqs

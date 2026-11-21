@@ -9,3 +9,4 @@
 /memory/              @danieldraghici
 /.claude/             @danieldraghici
 /.github/             @danieldraghici
+/ci/review*           @danieldraghici

@@ -1,0 +1,57 @@
+# Automated pull-request review (R-01, R-04, R-05). The GitHub App ml-ids-stack-agent posts one
+# comment and sets the check ai-review, which ruleset main-checks requires. It cannot approve.
+#
+# pull_request_target runs this file and ci/review.py as they are on main, so a branch cannot
+# change the code that holds the secrets. The job never checks out or runs pull-request code:
+# it reads the diff through the API and sends it to Claude as data, with no tools. The App key
+# and the API key are secrets of the environment ai-review, which only main may use (docs/review.md).
+name: review
+on:
+  pull_request_target:  # zizmor: ignore[dangerous-triggers] main's file; the branch is read as data, never checked out or run
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+
+# Default token is read-only: it only checks out main (R-03).
+permissions:
+  contents: read
+
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: review
+    # Drafts wait for ready_for_review. A fork never gets the secrets, so its ai-review stays
+    # missing and the pull request cannot merge (fail closed).
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    environment: ai-review
+    steps:
+      # No ref: on pull_request_target this checks out main, never the pull request's branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: pip install --require-hashes -r requirements-review.txt
+      # One-hour installation token with only what a reviewer needs, revoked when the job ends.
+      # Pull requests stay read-only, so the token cannot approve (R-01).
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: app
+        with:
+          client-id: ${{ vars.REVIEW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_APP_KEY }}
+          permission-checks: write
+          permission-issues: write
+          permission-pull-requests: read
+          permission-contents: read
+      - name: Review the diff with Claude
+        env:
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python ci/review.py
