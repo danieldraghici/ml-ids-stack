@@ -58,6 +58,15 @@ def test_a_fixture_capture_has_a_span():
     assert last > first
 
 
+def test_a_capture_without_a_time_span_is_refused(tmp_path, monkeypatch):
+    f = tmp_path / "c"
+    f.write_bytes(pcap([1_700_000_000.0, 1_700_000_000.0]))
+    monkeypatch.setattr(calibrate.run, "load_config", lambda: {"decision_threshold": 0.005})
+    monkeypatch.setattr(calibrate.run, "verify_model", lambda conf: "/models/m")
+    monkeypatch.setattr(calibrate.run, "check_features", lambda model: True)
+    assert calibrate.main(["--benign", str(f), "--attacks", "x.pcap"]) == 2
+
+
 def test_something_else_is_refused(tmp_path):
     (tmp_path / "x").write_bytes(b"not a capture")
     with pytest.raises(ValueError):

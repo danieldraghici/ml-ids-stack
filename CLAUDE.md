@@ -37,6 +37,7 @@ Plain English, active voice, short sentences. No em dashes, no filler, no market
 - `make scan`: Trivy on both images and the Python dependencies
 - `make gate`: replay the fixtures and compare with `tests/regression/baseline.json`
 - `make up`, `make down`, `make health`, `make tls`: the stack (student, in WSL)
+- `make reviewer-setup`, `make ti-demo-offline`: a reviewer's own secrets and certificate, and the enrichment demo without MISP (`docs/setup.md`, section 10)
 - `make demo-sensor-down`, `make demo-sensor-up`: stop and start the detector service to show SensorDown (`docs/monitoring.md`)
 - `make model`, `make model-release`, `make replay PCAP=<fixture>`: the detector
 - `make calibrate CAPTURE=<benign capture>`: false alarms and episodes per hour of a local benign capture, and detection on the attack fixtures, at a ladder of thresholds; it never changes `detector/thresholds.json`

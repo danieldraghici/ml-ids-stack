@@ -54,7 +54,7 @@ Dependabot proposes updates to actions, images, compose files, Python pins, dev 
 
 ## 4. Architecture and components
 
-State after F5 (MISP and monitoring join the same picture in F6 and F7):
+The sensors and the alert path as built in F5. F6 adds MISP and GeoIP enrichment inside Logstash (section 6). F7 adds the monitoring services next to them and the detector as a long-running service (the Monitoring item below and `docs/monitoring.md`):
 
 ```
                        make replay PCAP=...                       make up / make down
@@ -166,4 +166,26 @@ Evidence: `docs/evidence/R-10-misp-matched.png`, `docs/evidence/R-10-beacon-medi
 
 ## 7. Demonstration
 
-*To write in F7*: what the recorded demonstration shows and how a reviewer reproduces it after cloning.
+The recorded demonstration follows `docs/demo.md`, about 6 minutes, each step tied to a risk:
+
+| Step | Shows | Row | Evidence |
+|---|---|---|---|
+| Repository and register | ten rows, all Implemented; rulesets with five required checks, `ai-review` among them | R-01 | `RISK-REGISTER.md`, `docs/evidence/R-01-rulesets-active.json` |
+| Two sensors | the ML-IDS and Suricata on the same scan, in ECS, written and indexed alike | R-06, R-09 | `docs/evidence/R-06-mlids-alerts-in-dashboards.png` |
+| Threat intelligence | the same scan from a MISP indicator raised to high; a beacon no sensor caught raised to medium | R-10 | `docs/evidence/R-10-*.png` |
+| Stopped sensor | `make demo-sensor-down`: SensorDown fires in Grafana within about 2 minutes | R-06 | `docs/evidence/R-06-sensor-down-alert.png` |
+| Automated review | a careless pull request gets 5 blocking findings before any approval; the App cannot approve | R-01, R-05 | `docs/evidence/R-01-ai-review-*.png` |
+| The honest limit | 23 false episodes per hour on local benign traffic, against a budget of 1 | R-08 | `docs/evidence/R-08-fp-budget.md`, `R-08-grafana.png` |
+
+**Reproduce after cloning** (README, "Run it as a reviewer"):
+
+1. `make reviewer-setup` gives the reviewer their own secrets and a self-signed certificate. The student's SOPS files stay encrypted for the student.
+2. `make model-release` verifies the model's Cosign signature with the pinned tools image and its SHA-256 before use.
+3. `make up`, then the demonstration commands.
+4. `make ti-demo-offline` runs the enrichment step with the test dictionary when there is no MISP.
+
+Three parts cannot be reproduced from a clone, by design:
+
+- **The MISP feeds and the Shodan check:** the keys are the student's.
+- **The local benign capture:** it holds the student's personal traffic. Its measured numbers are in the evidence.
+- **The automated review:** it runs only on pull requests to this repository. Pull requests 17 to 27 show it.

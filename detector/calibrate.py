@@ -183,6 +183,10 @@ def main(argv: list[str] | None = None) -> int:
     ladder = sorted(set(args.thresholds or [current] + [t for t in LADDER if t > current]))
     first, last = capture_span(args.benign)
     hours = (last - first) / 3600
+    if hours < 1 / 60:
+        print(f"calibrate: {args.benign} spans {last - first:.1f} s; a rate per hour needs at least a minute",
+              file=sys.stderr)
+        return 2
 
     rows = []
     with tempfile.TemporaryDirectory() as work:
