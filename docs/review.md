@@ -41,7 +41,7 @@ Price on 2026-11-20: USD 4 per million input tokens and USD 20 per million outpu
 | Input | 400,000 characters of diff (`DIFF_LIMIT`), about 100,000 tokens | USD 0.40 |
 | Output | 32,000 tokens (`MAX_TOKENS`) | USD 0.64 |
 
-Every review ends with its own token counts and cost, so the real figures are visible on each pull request. Files left out of the diff (binary, too large, over the budget) are listed in the review, never dropped silently.
+Measured on pull request 19 (2026-11-21): 3,149 input and 1,311 output tokens, about USD 0.04, in 16 s. Every review ends with its own token counts and cost, so the real figures are visible on each pull request. Files left out of the diff (binary, too large, over the budget) are listed in the review, never dropped silently.
 
 ## Run it locally
 

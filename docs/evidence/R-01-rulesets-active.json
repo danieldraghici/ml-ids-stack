@@ -1,5 +1,5 @@
 {
-  "read_at": "2026-11-19T10:13:07+00:00",
+  "read_at": "2026-11-21T07:22:55+00:00",
   "rules_applied_to_main": [
     {
       "type": "deletion",
@@ -54,6 +54,10 @@
           {
             "context": "detection-gate",
             "integration_id": 15368
+          },
+          {
+            "context": "ai-review",
+            "integration_id": 5667084
           }
         ]
       },
@@ -139,6 +143,10 @@
               {
                 "context": "detection-gate",
                 "integration_id": 15368
+              },
+              {
+                "context": "ai-review",
+                "integration_id": 5667084
               }
             ],
             "strict_required_status_checks_policy": true
