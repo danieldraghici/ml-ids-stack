@@ -3,7 +3,7 @@
 # adopted inside the 14-day cooldown under the security exception: the 1.30.5 build carried 27
 # fixable HIGH or CRITICAL findings (nginx, musl, libexpat, curl...) and no build older than
 # 14 days is free of them, because the nginx and musl fixes are newer than that.
-FROM nginx:1.30.7-alpine@sha256:bef154735288bc38d99fac41ae63730684bcc661503673a04a0f9bc526ba8598
+FROM nginx:1.30.7-alpine@sha256:caf4e1e032a20f9c3c5e28fc7f25ffd768ad8677b4975c54193075997b3a97e3
 
 # Site config only. Certificates stay out of the image and are mounted at runtime from
 # certs/ (git-ignored), issued by scripts/pki.sh.
