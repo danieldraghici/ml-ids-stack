@@ -34,8 +34,9 @@ __pycache__/
 Thumbs.db
 ~$*.xlsx
 
-# Detector output (alerts, episodes, status) from make replay
+# Detector output (alerts, episodes, status, heartbeat) and the captures it watches (F7)
 out/
+inbox/
 
 # Live threat intelligence and the own public address: never in git (R-10)
 enrich/

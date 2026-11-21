@@ -35,6 +35,20 @@ services:
     working_dir: /src
     volumes: ["..:/src:ro"]
 
+  # The monitoring configuration (R-06): promtool checks Prometheus's config and tests the alert
+  # rules, amtool checks Alertmanager's config, from the same pinned images the stack runs.
+  promtool:
+    image: prom/prometheus:v3.16.0@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06
+    entrypoint: ["promtool"]
+    working_dir: /src
+    volumes: ["..:/src:ro"]
+
+  amtool:
+    image: prom/alertmanager:v0.34.2@sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b
+    entrypoint: ["amtool"]
+    working_dir: /src
+    volumes: ["..:/src:ro"]
+
   # Scans image tarballs from out/images/ and the Python lock files. The vulnerability
   # database is downloaded at run time and cached in a named volume.
   trivy:

@@ -1,0 +1,7 @@
+{
+  "description": "The stack exporter (monitoring/exporter.py): cluster health and document counts of the stack's indices only (R-02, R-06).",
+  "cluster_permissions": ["cluster:monitor/health"],
+  "index_permissions": [
+    { "index_patterns": ["mlids-*", "suricata-*"], "allowed_actions": ["indices:data/read/search"] }
+  ]
+}

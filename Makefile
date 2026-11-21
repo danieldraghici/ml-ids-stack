@@ -1,7 +1,8 @@
 # Run from WSL2 Ubuntu (see docs/setup.md). Ports come from .env, the admin password from
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
 .PHONY: lint lint-ci test review secrets pki up down single-node health dashboards tls model model-check model-release \
-        detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate \n        misp-setup misp-up misp-down misp-pull exposure ti-demo geoip
+        detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate \
+        misp-setup misp-up misp-down misp-pull exposure ti-demo geoip demo-sensor-down demo-sensor-up
 
 # Where the dissertation's model bundle lives on this machine (never committed, R-07).
 MODEL_SRC ?= /mnt/d/ML_IDS_Disertation/ML_IDS_Disertation/models/nfv3_window_xgb_latest.joblib
@@ -24,12 +25,16 @@ SCAN_FLAGS := --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progr
 lint:
 	pre-commit run --all-files
 
-# The linters of the CI lint job: shell scripts, Dockerfiles, code patterns, the workflows.
+# The linters of the CI lint job: shell scripts, Dockerfiles, code patterns, the workflows, and the
+# monitoring configuration with the promtool tests of the alert rules (R-06).
 lint-ci:
 	$(TOOLS) shellcheck scripts/*.sh
 	$(TOOLS) hadolint nginx/Dockerfile detector/Dockerfile logstash/Dockerfile
 	$(TOOLS) semgrep scan --config p/ci --error --metrics off
 	$(TOOLS) zizmor --offline .
+	$(TOOLS) promtool check config monitoring/prometheus.yml
+	$(TOOLS) promtool test rules monitoring/alerts.test.yml
+	$(TOOLS) amtool check-config monitoring/alertmanager.yml
 
 test:
 	python3 -m pytest -q
@@ -65,8 +70,10 @@ geoip:
 
 up: secrets enrich/ioc_ip.yml geoip
 	@test -f certs/frontdoor.crt || { echo "no front-door certificate: run make pki"; exit 1; }
+	@mkdir -p inbox out
 	$(COMPOSE) up -d --build --wait
 	@$(MAKE) --no-print-directory single-node
+	@bash scripts/monitor-user.sh
 	@$(MAKE) --no-print-directory health
 
 # One node holds no replica, so the security plugin's audit-log indices would keep the cluster
@@ -163,12 +170,18 @@ scan: images
 # Logstash reads only the detector's output folder and Suricata runs without network on pcaps.
 # Dependabot proposes each new pinned release.
 SURICATA_IMAGE := $(shell awk '/image: jasonish\/suricata/ {print $$2}' ci/compose.yaml)
+MONITORING_IMAGES := $(shell awk '/image: (prom|grafana)\// {print $$2}' compose.yaml)
 scan-upstream: logstash
 	@mkdir -p out/images
 	docker save -o out/images/logstash.tar ml-ids-stack/logstash:local
 	docker pull -q $(SURICATA_IMAGE) >/dev/null && docker save -o out/images/suricata.tar $(SURICATA_IMAGE)
 	$(TOOLS) trivy image --input out/images/logstash.tar --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 --no-progress
 	$(TOOLS) trivy image --input out/images/suricata.tar --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 --no-progress
+	@for img in $(MONITORING_IMAGES); do \
+	  f=out/images/$$(echo $${img%%@*} | tr '/:' '__').tar; \
+	  docker pull -q $$img >/dev/null && docker save -o $$f $$img && \
+	  $(TOOLS) trivy image --input $$f --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 --no-progress || exit 1; \
+	done
 
 # SPDX SBOM of each image (Syft), attached to every release.
 sbom: images
@@ -250,3 +263,12 @@ ti-demo:
 	  $(MAKE) --no-print-directory replay PCAP=$$p PCAP_DIR=out/demo || exit 1; \
 	  $(MAKE) --no-print-directory suricata PCAP=$$p PCAP_DIR=out/demo >/dev/null || exit 1; \
 	done
+
+# R-06 demonstration: stop the detector service; SensorDown fires within about 2 minutes on
+# Prometheus (127.0.0.1:PROMETHEUS_PORT/alerts) and in Grafana. make demo-sensor-up starts it again.
+demo-sensor-down:
+	$(COMPOSE) stop detector
+	@echo "detector stopped: SensorDown fires within ~2 min, Grafana https://localhost:$$(sed -n 's/^HTTPS_PORT=//p' .env)/grafana/d/ml-ids-stack"
+
+demo-sensor-up:
+	$(COMPOSE) start detector

@@ -42,6 +42,7 @@ Every job runs on every pull request and is a required check on `main`. The tool
 | `lint` / pre-commit, gitleaks on the full history | A key or token in any commit of the branch; malformed YAML, JSON, TOML | R-02 |
 | `lint` / ShellCheck, Hadolint | Broken shell scripts (`scripts/pki.sh`) and unsafe Dockerfile patterns | R-04 |
 | `lint` / Semgrep | Known insecure code patterns (`p/ci` rules) | R-04 |
+| `lint` / promtool, amtool | An alert rule that no longer fires on its test case or fires when it should stay quiet; a broken Prometheus or Alertmanager configuration | R-06 |
 | `lint` / zizmor | Unpinned actions, credentials left by checkout, template injection, risky triggers, a Dependabot file without cooldown | R-03, R-04 |
 | `test` | A broken guard hook rule, a floating image, action, revision or package, a model gate or feature contract that no longer refuses, a register row claiming evidence it lacks | R-01, R-04, R-05, R-07 |
 | `scan` / Trivy | Either image, or a Python dependency, with a HIGH or CRITICAL vulnerability that has a fix | R-04 |
@@ -86,6 +87,12 @@ State after F5 (MISP and monitoring join the same picture in F6 and F7):
   - Every input line becomes exactly one document: on a clean stack, 20,079 lines in `out/` give 20,079 documents.
   - Until F6 the Suricata mapping lost some records silently. A ruby filter variable named `e` is shared by every worker thread in logstash-filter-ruby, so records took each other's document id and overwrote each other: 510 of 9,880 on one ingest. The pipeline's gate results were not affected, because the gate reads the EVE files directly.
   - `tests/test_suricata_ecs.py` now runs the mapping on four workers and forbids that variable name. `make dashboards` imports the index patterns and four saved searches, one of them every sensor's results for one source.
+- **Monitoring** (`monitoring/`, `docs/monitoring.md`, R-06, F7):
+  - The detector also runs as a service. It replays every capture dropped into `inbox/` with the same hardening and writes a heartbeat.
+  - An exporter written here, standard library only, publishes the heartbeat, the records written against the documents indexed per pipeline, and the health of OpenSearch and Logstash.
+  - Prometheus evaluates SensorDown, PipelineStalled, OpenSearchDown and ExporterDown, each tested by promtool in the required check `lint`. Alertmanager keeps the firing alerts.
+  - Grafana shows them behind the front door, with a provisioned dashboard.
+  - `make demo-sensor-down` stops the detector, and SensorDown fires within about 2 minutes.
 
 ## 5. AI workflow
 
