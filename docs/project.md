@@ -23,7 +23,7 @@ Each row names the asset, the technique (ATT&CK or ATLAS), likelihood and impact
 
 ## 3. GitHub route and governance
 
-Route 2 of the syllabus: a personal private repository with GitHub Pro from GitHub Education. Rulesets `main-checks` (pull request, required checks, no force push or deletion, no bypass) and `main-review` (one approving review) protect `main`. The student authors every commit and pull request, with the agent as co-author when it helped. The agent works with a fine-grained token limited to this repository, and a separate GitHub App reviews every pull request with Claude. It comments and sets the required check `ai-review` but cannot approve, so every merge stays the student's decision. Details: `docs/setup.md`, `docs/credentials.md`, `docs/review.md`.
+Route 2 of the syllabus: a personal private repository with GitHub Pro from GitHub Education. Rulesets `main-checks` (pull request, required checks, no force push or deletion, no bypass) and `main-review` (one approving review) protect `main`. The student authors every commit and pull request, with the agent as co-author when it helped. The agent works with a fine-grained token limited to this repository, and a separate GitHub App reviews every pull request with Claude. It puts its review in the required check `ai-review` but cannot approve, so every merge stays the student's decision. Details: `docs/setup.md`, `docs/credentials.md`, `docs/review.md`.
 
 The Git CLI push risks named in Session 1 each have a stated control:
 
@@ -98,7 +98,7 @@ The configuration below is in the repository and is reviewed like code (CODEOWNE
 - **Enforced safety rules** (`.claude/settings.json`, `.claude/hooks/guard.py`, tested in `tests/test_hook.py`): deny rules and a PreToolUse hook refuse secret reads, skipped checks, force pushes, pushes to `main`, merges, approvals, tags, releases and edits to the threshold, the model, the regression tests and the hook itself.
 - **Memory poisoning**: `docs/memory-poisoning.md` and the evidence `docs/evidence/R-05-poisoned-memory-*.png`.
 - **Isolation**: the dev container and the agent's scoped token (`docs/credentials.md`, R-03).
-- **Automated pull-request review** (`docs/review.md`): on every pull request the GitHub App `ml-ids-stack-agent` sends the diff to Claude Opus 5.5 as data, with no tools, then comments and sets the required check `ai-review`. It cannot approve. The CI review uses a stronger model than the pre-PR sub-agent, because it is the last automated check before the student's decision.
+- **Automated pull-request review** (`docs/review.md`): on every pull request the GitHub App `ml-ids-stack-agent` sends the diff to Claude Opus 5.5 as data, with no tools, then sets the required check `ai-review`, with the review as its summary and line annotations. It can neither comment nor approve. The CI review uses a stronger model than the pre-PR sub-agent, because it is the last automated check before the student's decision.
 
 ## 6. Threat intelligence enrichment
 

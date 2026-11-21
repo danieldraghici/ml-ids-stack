@@ -2,15 +2,16 @@
 
 .github/workflows/review.yml runs this file from main's own checkout on pull_request_target.
 It reads the pull request through the GitHub API and never checks out or runs the pull
-request's code. The diff goes to Claude as data, with no tools. The App then posts one
-comment and sets the check run ai-review, which ruleset main-checks requires. The App has no
-pull-request write permission, so it cannot approve: every merge stays the student's decision.
+request's code. The diff goes to Claude as data, with no tools. The App then completes the check
+run ai-review, which ruleset main-checks requires, with the review as its summary and as
+annotations on the lines it names. The App has no pull-request write permission, so it can
+neither comment nor approve: every merge stays the student's decision.
 
     python ci/review.py           # workflow: REPO, PR_NUMBER, HEAD_SHA, APP_TOKEN, ANTHROPIC_API_KEY
-    python ci/review.py --local   # student: reviews git diff origin/main...HEAD, prints the comment
+    python ci/review.py --local   # student: reviews git diff origin/main...HEAD, prints the review
 
 The check fails closed: a blocking finding, a declined request, an API error or a verdict that
-cannot be read all set ai-review to failure, with the reason in the comment.
+cannot be read all set ai-review to failure, with the reason in its summary.
 """
 from __future__ import annotations
 
@@ -27,7 +28,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PROMPT = Path(__file__).with_name("review-prompt.md")
 CHECK_NAME = "ai-review"
-MARKER = "<!-- ai-review -->"
 API = "https://api.github.com"
 
 # Claude Opus 5.5 at effort high: a review is judgement work, and one costs cents (docs/review.md).
@@ -42,7 +42,7 @@ PRICES = {"claude-opus-5-5": (4.0, 20.0)}   # USD per million input and output t
 FILE_LIMIT = 60_000          # characters of one file's patch sent to the model
 DIFF_LIMIT = 400_000         # characters of the whole diff, about 100,000 tokens
 ANNOTATION_LIMIT = 50        # GitHub takes at most 50 annotations per request
-TEXT_LIMIT = 60_000          # comments and check summaries stop at 65,535 characters
+TEXT_LIMIT = 60_000          # check summaries stop at 65,535 characters
 
 VERDICT_SCHEMA = {
     "type": "object",
@@ -255,13 +255,13 @@ def cost_line(meta: dict | None) -> str:
     return f"Model {served}, effort {EFFORT}; {tokens}."
 
 
-FOOTER = (f"This review comments and sets the check {CHECK_NAME}. It cannot approve; "
+FOOTER = (f"The App only sets the check {CHECK_NAME}. It cannot approve; "
           "the student decides the merge.")
 
 
-def comment_body(sha: str, verdict: dict, meta: dict | None, skipped: list[str]) -> str:
+def review_body(sha: str, verdict: dict, meta: dict | None, skipped: list[str]) -> str:
     findings = sorted(verdict["findings"], key=lambda f: f["severity"] != "blocking")
-    lines = [MARKER, f"### {CHECK_NAME} of {sha[:7]}: {title(findings)}", "", clean(verdict["summary"])]
+    lines = [f"### {CHECK_NAME} of {sha[:7]}: {title(findings)}", "", clean(verdict["summary"])]
     if findings:
         lines += ["", *map(finding_line, findings)]
     if skipped:
@@ -271,7 +271,7 @@ def comment_body(sha: str, verdict: dict, meta: dict | None, skipped: list[str])
 
 
 def incomplete_body(sha: str, reason: str) -> str:
-    return "\n".join([MARKER, f"### {CHECK_NAME} of {sha[:7]}: review not completed", "",
+    return "\n".join([f"### {CHECK_NAME} of {sha[:7]}: review not completed", "",
                       f"The check fails closed because {reason}. Re-run the workflow once the cause "
                       "is fixed; a pull request cannot merge without a completed review.",
                       "", f"<sub>{FOOTER}</sub>"])
@@ -322,7 +322,7 @@ def run_in_ci() -> int:
             pr["title"], pr.get("body") or "", pr_files(repo, number, token),
             (ROOT / "CLAUDE.md").read_text(), (ROOT / "RISK-REGISTER.md").read_text())
         result, heading = conclusion(verdict["findings"]), title(verdict["findings"])
-        summary = comment_body(sha, verdict, meta, skipped)
+        summary = review_body(sha, verdict, meta, skipped)
         notes = annotations(verdict["findings"], reviewed)
     except ReviewIncomplete as err:
         result, heading, summary = "failure", "Review not completed", incomplete_body(sha, str(err))
@@ -331,7 +331,6 @@ def run_in_ci() -> int:
         summary = incomplete_body(sha, f"the review job failed ({type(err).__name__})")
         finish(repo, check["id"], token, result, heading, summary, [])
         raise
-    github("POST", f"/repos/{repo}/issues/{number}/comments", token, {"body": summary})
     finish(repo, check["id"], token, result, heading, summary, notes)
     print(f"{CHECK_NAME}: {result}, {heading}")
     return 0
@@ -365,13 +364,13 @@ def run_local(base: str, body_file: str | None) -> int:
     except ReviewIncomplete as err:
         print(incomplete_body(sha, str(err)))
         return 1
-    print(comment_body(sha, verdict, meta, skipped))
+    print(review_body(sha, verdict, meta, skipped))
     return 1 if conclusion(verdict["findings"]) == "failure" else 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    parser.add_argument("--local", action="store_true", help="review the current branch, print the comment")
+    parser.add_argument("--local", action="store_true", help="review the current branch, print the review")
     parser.add_argument("--base", default="origin/main", help="base for --local (default origin/main)")
     parser.add_argument("--body-file", help="pull-request description for --local")
     args = parser.parse_args(argv)
