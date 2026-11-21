@@ -55,3 +55,7 @@ make test
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+
+## Feed age
+
+`enrichment/ioc_age.py` says whether the MISP dictionary is stale. The detector catches 99% of attacks, so a stale feed only matters for the rest.
