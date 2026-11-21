@@ -240,6 +240,8 @@ MISP_DIR ?= ../misp-docker
 MISP := docker compose --project-directory $(MISP_DIR)
 # MISP and Shodan clients live in their own virtual environment (requirements-intel.txt), outside CI.
 INTEL_PYTHON ?= $(HOME)/.venvs/intel/bin/python
+# scapy for the demo captures (make ti-demo): the dev environment when it exists, else python3.
+DEV_PYTHON ?= $(if $(wildcard $(HOME)/.venvs/secops/bin/python),$(HOME)/.venvs/secops/bin/python,python3)
 REVIEW_PYTHON ?= $(HOME)/.venvs/review/bin/python
 
 misp-setup:
@@ -270,7 +272,8 @@ ti-demo:
 	@mkdir -p out/demo
 	tcprewrite --pnat=192.168.20.11/32:$(DEMO_IOC)/32 --fixcsum \
 	  --infile=tests/fixtures/pcaps/portscan.pcap --outfile=out/demo/ti_portscan.pcap
-	python3 enrichment/make_demo.py "$(DEMO_IOC)" out/demo/ti_beacon.pcap
+	@$(DEV_PYTHON) -c 'import scapy' 2>/dev/null || { echo "ti-demo needs scapy: python3 -m venv ~/.venvs/secops && ~/.venvs/secops/bin/pip install --require-hashes -r requirements-dev.txt"; exit 1; }
+	$(DEV_PYTHON) enrichment/make_demo.py "$(DEMO_IOC)" out/demo/ti_beacon.pcap
 	@for p in ti_portscan.pcap ti_beacon.pcap; do \
 	  $(MAKE) --no-print-directory replay PCAP=$$p PCAP_DIR=out/demo || exit 1; \
 	  $(MAKE) --no-print-directory suricata PCAP=$$p PCAP_DIR=out/demo >/dev/null || exit 1; \

@@ -80,4 +80,4 @@ Show `docs/evidence/R-08-fp-budget.md`:
 make down
 ```
 
-The recording file is not committed. `docs/project.md` section 7 names where it is shared.
+The recording file is not committed: it is on Google Drive, linked from `docs/project.md` section 7.

@@ -36,13 +36,15 @@ Three demonstrations need nothing else:
 
 ```bash
 make replay PCAP=portscan.pcap && make suricata PCAP=portscan.pcap   # both sensors, into OpenSearch
-make ti-demo-offline       # threat-intel enrichment with the test dictionary, no MISP needed
+make ti-demo-offline       # threat-intel enrichment with the test dictionary, no MISP needed (needs scapy, below)
 make demo-sensor-down      # SensorDown fires in about 2 minutes; make demo-sensor-up ends it
 ```
 
+`make ti-demo-offline` builds its captures with scapy, from the development environment of the "Develop" section below.
+
 A reviewer's stack starts with IocFeedStale firing: there is no MISP feed. That is the intended signal (`docs/monitoring.md`).
 
-The full script of the recorded demonstration is [docs/demo.md](docs/demo.md). `make down` removes the stack, its volumes and `.env.secrets`.
+The recorded demonstration is on [Google Drive](https://drive.google.com/drive/folders/1GEm2LODJGIOUXX-QxwUn7z56UDmC2srq?usp=sharing); its script is [docs/demo.md](docs/demo.md). `make down` removes the stack, its volumes and `.env.secrets`.
 
 ## Status
 
