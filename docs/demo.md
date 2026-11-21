@@ -33,10 +33,11 @@ make suricata PCAP=portscan.pcap
 ## 3. Threat intelligence changes the outcome (1 min, R-10)
 
 ```bash
-make ti-demo DEMO_IOC=162.243.103.246      # reviewer: make ti-demo-offline
+make ti-demo DEMO_IOC=<a TLP:CLEAR address from enrich/ioc_ip.yml>   # reviewer: make ti-demo-offline
 ```
 
 - **Dashboards:** "Threat intel matches" shows the same scan from a MISP indicator, now at high priority with risk 72.
+- **On camera:** only a TLP:CLEAR indicator may appear, as in the evidence screenshots (R-10).
 - **The beacon:** no sensor alerted on it, yet it is raised to medium.
 - **The original address:** in no feed, so it stays unchanged.
 - **Evidence:** `docs/evidence/R-10-*.png`.
