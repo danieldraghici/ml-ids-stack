@@ -1,0 +1,13 @@
+# Alertmanager for the detection stack (R-06). A lab stack has no pager or mail relay, so
+# alerts go to a receiver without integrations: Alertmanager keeps them, its UI on 127.0.0.1
+# and the Grafana dashboard show them. A real deployment adds a webhook or mail receiver here.
+# Checked by amtool (make lint-ci).
+route:
+  receiver: lab
+  group_by: [alertname, reason]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 4h
+
+receivers:
+  - name: lab
