@@ -46,16 +46,20 @@ INDICES = {"mlids": "mlids-*", "suricata": "suricata-*"}
 CLUSTER_STATUS = {"green": 0, "yellow": 1, "red": 2}
 
 
-def count_lines(paths: list[str]) -> int:
-    total = 0
+def count_lines(paths: list[str]) -> tuple[int, int]:
+    """Non-empty lines in the files, and how many files could not be read (gone or not readable)."""
+    total = unreadable = 0
     for path in paths:
-        with open(path, "rb") as fh:
-            total += sum(1 for line in fh if line.strip())
-    return total
+        try:
+            with open(path, "rb") as fh:
+                total += sum(1 for line in fh if line.strip())
+        except OSError:
+            unreadable += 1
+    return total, unreadable
 
 
-def out_records(out_dir: str) -> dict[str, int]:
-    """Records each sensor wrote, counted like Logstash reads them: top level of out/, non-empty lines."""
+def out_records(out_dir: str) -> dict[str, tuple[int, int]]:
+    """(records, unreadable files) per sensor, counted like Logstash reads them: top level of out/."""
     return {name: count_lines(sorted(p for pat in pats for p in glob.glob(os.path.join(out_dir, pat))))
             for name, pats in SOURCES.items()}
 
@@ -77,8 +81,9 @@ def collect(out_dir: str, os_get, ls_get) -> list[tuple[str, dict, float]]:
         samples.append(("mlids_detector_heartbeat_timestamp_seconds", {}, beat["ts"]))
         samples.append(("mlids_detector_captures_processed", {}, beat.get("processed", 0)))
         samples.append(("mlids_detector_captures_failed", {}, beat.get("failed", 0)))
-    for name, n in out_records(out_dir).items():
+    for name, (n, unreadable) in out_records(out_dir).items():
         samples.append(("mlids_out_records", {"pipeline": name}, n))
+        samples.append(("mlids_out_unreadable_files", {"pipeline": name}, unreadable))
 
     try:
         health = os_get("/_cluster/health")
@@ -103,6 +108,7 @@ HELP = {
     "mlids_detector_captures_processed": "Captures the running detector replayed since it started.",
     "mlids_detector_captures_failed": "Captures the running detector refused or failed on since it started.",
     "mlids_out_records": "Records the sensors wrote to out/, as Logstash reads them.",
+    "mlids_out_unreadable_files": "Files in out/ the exporter could not read; their records are not counted.",
     "mlids_indexed_documents": "Documents in OpenSearch for each pipeline, error indices included.",
     "opensearch_up": "1 if OpenSearch answered the cluster health request.",
     "opensearch_cluster_status": "OpenSearch cluster status: 0 green, 1 yellow, 2 red.",

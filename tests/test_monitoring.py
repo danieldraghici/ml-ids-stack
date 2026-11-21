@@ -6,6 +6,8 @@ import importlib.util
 import json
 import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace as NS
 
@@ -42,7 +44,14 @@ def out(tmp_path):
 
 def test_records_are_counted_as_logstash_reads_them(out):
     # top level only, the two ML-IDS patterns and the EVE files, blank lines skipped
-    assert exporter.out_records(str(out)) == {"mlids": 3, "suricata": 3}
+    assert exporter.out_records(str(out)) == {"mlids": (3, 0), "suricata": (3, 0)}
+
+
+def test_an_unreadable_file_is_counted_not_fatal(out):
+    # a file deleted between glob and open, or not readable by the exporter's user
+    assert exporter.count_lines([str(out / "a.eve.json"), str(out / "gone.eve.json")]) == (3, 1)
+    m = metrics(exporter.collect(str(out), down, down))
+    assert m[("mlids_out_unreadable_files", (("pipeline", "suricata"),))] == 0
 
 
 def opensearch(status="yellow", counts=None):
@@ -99,26 +108,57 @@ def test_exposition_format():
 
 # ---------------------------------------------------------------- detector watch loop
 
-def test_pending_skips_done_growing_and_other_files(tmp_path, monkeypatch):
+@pytest.fixture
+def dirs(tmp_path):
     inbox, outd = tmp_path / "inbox", tmp_path / "out"
     inbox.mkdir(); outd.mkdir()
-    for name, age in [("old.pcap", 100), ("new.pcapng", 50), ("done.pcap", 100), ("growing.pcap", 1), ("notes.txt", 100)]:
-        (inbox / name).write_bytes(b"x")
+
+    def drop(name, age=100, data=b"x"):
+        (inbox / name).write_bytes(data)
         os.utime(inbox / name, (1000 - age, 1000 - age))
-    (outd / "done.status.json").write_text("{}")
-    assert [Path(p).name for p in watch.pending(str(inbox), str(outd), now=1000)] == ["old.pcap", "new.pcapng"]
+        return str(inbox / name)
+    return inbox, outd, drop
 
 
-def test_a_capture_deleted_while_listed_is_skipped(tmp_path, monkeypatch):
-    inbox, outd = tmp_path / "inbox", tmp_path / "out"
-    inbox.mkdir(); outd.mkdir()
-    for name in ("gone.pcap", "kept.pcap"):
-        (inbox / name).write_bytes(b"x")
-        os.utime(inbox / name, (900, 900))
-    real = os.path.getmtime
-    monkeypatch.setattr(watch.os.path, "getmtime",
-                        lambda p: (_ for _ in ()).throw(FileNotFoundError(p)) if p.endswith("gone.pcap") else real(p))
-    assert [Path(p).name for p in watch.pending(str(inbox), str(outd), now=1000)] == ["kept.pcap"]
+def names(paths):
+    return [Path(p).name for p in paths]
+
+
+def test_pending_skips_done_growing_and_other_files(dirs):
+    inbox, outd, drop = dirs
+    for name, age in [("old.pcap", 100), ("new.pcapng", 50), ("done.pcap", 100), ("growing.pcap", 1), ("notes.txt", 100)]:
+        drop(name, age)
+    watch.mark_done(str(outd), str(inbox / "done.pcap"))
+    assert names(watch.pending(str(inbox), str(outd), now=1000)) == ["old.pcap", "new.pcapng"]
+
+
+def test_a_new_file_under_a_replayed_name_is_replayed(dirs):
+    # make replay left hulk.status.json, and an earlier hulk.pcap was replayed from the inbox:
+    # neither hides a new hulk.pcap with other content
+    inbox, outd, drop = dirs
+    (outd / "hulk.status.json").write_text("{}")
+    path = drop("hulk.pcap", 100, b"first")
+    assert names(watch.pending(str(inbox), str(outd), now=1000)) == ["hulk.pcap"]
+    watch.mark_done(str(outd), path)
+    assert watch.pending(str(inbox), str(outd), now=1000) == []
+    drop("hulk.pcap", 50, b"second capture")
+    assert names(watch.pending(str(inbox), str(outd), now=1000)) == ["hulk.pcap"]
+
+
+def test_a_capture_that_would_overwrite_another_is_refused(dirs):
+    inbox, outd, drop = dirs
+    watch.mark_done(str(outd), drop("a.pcap"))
+    assert watch.conflict(str(outd), drop("a.pcapng")) == "a.pcap"
+    assert watch.conflict(str(outd), str(inbox / "a.pcap")) is None
+
+
+def test_a_capture_deleted_while_listed_is_skipped(dirs, monkeypatch):
+    inbox, outd, drop = dirs
+    drop("gone.pcap"); drop("kept.pcap")
+    real = os.stat
+    monkeypatch.setattr(watch.os, "stat",
+                        lambda p, *a, **k: (_ for _ in ()).throw(FileNotFoundError(p)) if str(p).endswith("gone.pcap") else real(p, *a, **k))
+    assert names(watch.pending(str(inbox), str(outd), now=1000)) == ["kept.pcap"]
 
 
 def test_a_capture_goes_through_run_then_episodes(tmp_path):
@@ -128,6 +168,15 @@ def test_a_capture_goes_through_run_then_episodes(tmp_path):
     (first, t1), (second, t2) = calls
     assert first[1].endswith("/run.py") and first[2] == "/inbox/scan.pcap" and t1 == 60
     assert second[1].endswith("/episodes.py") and second[2:] == ["/out/scan.alerts.jsonl", "/out/scan.episodes.jsonl"]
+
+
+def test_a_replay_starts_from_clean_outputs(tmp_path):
+    for suffix in ("alerts.jsonl", "episodes.jsonl", "status.json"):
+        (tmp_path / f"scan.{suffix}").write_text("old run")
+    seen = []
+    run = lambda argv, timeout: seen.append(sorted(p.name for p in tmp_path.iterdir())) or NS(returncode=0)
+    watch.process("/inbox/scan.pcap", str(tmp_path), run)
+    assert seen[0] == []     # nothing left for the detector to append to
 
 
 def test_a_refused_capture_stops_before_episodes():
@@ -199,3 +248,50 @@ def test_grafana_only_through_the_front_door_with_a_sops_password():
     assert g["environment"]["GF_SECURITY_ADMIN_PASSWORD"] == "${GRAFANA_ADMIN_PASSWORD:?run make secrets}"
     assert g["environment"]["GF_AUTH_ANONYMOUS_ENABLED"] == "false"
     assert "location /grafana/" in (ROOT / "nginx/frontdoor.conf").read_text()
+
+
+# ---------------------------------------------------------------- scripts/monitor-user.sh
+
+@pytest.fixture
+def stack(tmp_path):
+    """A copy of what monitor-user.sh reads, and a stub curl that records its stdin and answers CODE."""
+    (tmp_path / "config/opensearch").mkdir(parents=True)
+    shutil.copy(ROOT / "config/opensearch/stack-monitor-role.json", tmp_path / "config/opensearch")
+    (tmp_path / ".env").write_text("OPENSEARCH_PORT=9200\n")
+    (tmp_path / ".env.secrets").write_text("OPENSEARCH_INITIAL_ADMIN_PASSWORD='ad\"m\\in'\nOPENSEARCH_MONITOR_PASSWORD='mo\"n\\itor'\n")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    curl = bin_dir / "curl"
+    curl.write_text('#!/usr/bin/env bash\ncat >> "$STUB_LOG"; echo >> "$STUB_LOG"; printf "%s" "$CODE"\n')
+    curl.chmod(0o755)
+
+    def run(code):
+        env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}", STUB_LOG=str(tmp_path / "stdin.log"), CODE=code)
+        result = subprocess.run(["bash", str(ROOT / "scripts/monitor-user.sh")], cwd=tmp_path, env=env,
+                                capture_output=True, text=True)
+        return result, (tmp_path / "stdin.log").read_text()
+    return run
+
+
+def curl_config_value(line):
+    """What curl makes of `key = "value"` in its config: \\" is a quote, \\\\ a backslash."""
+    raw = line.split(" = ", 1)[1]
+    assert raw.startswith('"') and raw.endswith('"')
+    return re.sub(r'\\(.)', r'\1', raw[1:-1])
+
+
+def test_monitor_user_written_with_escaped_passwords_on_stdin(stack):
+    result, stdin = stack("201")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == ["PUT roles/stack_monitor: 201", "PUT internalusers/monitor: 201"]
+    lines = stdin.splitlines()
+    assert curl_config_value(lines[0]) == 'admin:ad"m\\in'
+    role = json.loads(curl_config_value(lines[1]))
+    assert role["cluster_permissions"] == ["cluster:monitor/health"]
+    user = json.loads(curl_config_value(lines[4]))
+    assert user == {"password": 'mo"n\\itor', "opendistro_security_roles": ["stack_monitor"]}
+
+
+def test_monitor_user_fails_when_opensearch_refuses(stack):
+    result, _ = stack("403")
+    assert result.returncode != 0 and "PUT roles/stack_monitor: 403" in result.stdout

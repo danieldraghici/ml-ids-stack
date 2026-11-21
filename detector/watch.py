@@ -6,8 +6,13 @@ watches INBOX: a new .pcap or .pcapng that nobody has written to for SETTLE_S se
 through run.py (model hash and feature contract checked on every capture, R-07) and
 episodes.py, exactly as make replay does, so the output lands in OUT_DIR where Logstash picks
 it up. The inbox is listed every POLL_S seconds, so a capture starts within about
-SETTLE_S + POLL_S seconds. A capture with a <name>.status.json in OUT_DIR is done and never
-replayed again; one that fails is not retried until a restart.
+SETTLE_S + POLL_S seconds.
+
+A replayed capture leaves OUT_DIR/<stem>.inbox.json with its file name, size and modification
+time, and is done while all three match: a new file under the same name is replayed again.
+Outputs are named by the stem, so a second capture with the same stem (a.pcapng next to
+a.pcap) would overwrite the first one's alerts: it is refused, logged and counted as failed.
+A capture that fails is not retried until a restart.
 
 The heartbeat is OUT_DIR/heartbeat.json, rewritten every BEAT_S seconds by a thread of its own,
 so a long replay does not look like an outage. The exporter turns its time into
@@ -47,18 +52,43 @@ def stem(path: str) -> str:
     return os.path.splitext(os.path.basename(path))[0]
 
 
+def fingerprint(path: str) -> dict:
+    st = os.stat(path)
+    return {"name": os.path.basename(path), "size": st.st_size, "mtime": st.st_mtime}
+
+
+def marker(out_dir: str, path: str) -> dict | None:
+    """The done marker written for this capture's stem, if any."""
+    try:
+        with open(os.path.join(out_dir, f"{stem(path)}.inbox.json"), encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def mark_done(out_dir: str, path: str) -> None:
+    with open(os.path.join(out_dir, f"{stem(path)}.inbox.json"), "w", encoding="utf-8") as fh:
+        json.dump(fingerprint(path), fh)
+
+
+def conflict(out_dir: str, path: str) -> str | None:
+    """The other capture whose outputs this one would overwrite, if any."""
+    done = marker(out_dir, path)
+    return done["name"] if done and done.get("name") != os.path.basename(path) else None
+
+
 def pending(inbox: str, out_dir: str, now: float | None = None) -> list[str]:
-    """Captures in the inbox without a status file in out_dir, oldest first, untouched for SETTLE_S.
+    """Captures in the inbox not replayed in this exact version, oldest first, untouched for SETTLE_S.
 
     A capture deleted or renamed while the inbox is listed is skipped, never fatal."""
     now = time.time() if now is None else now
     found = []
     for name in os.listdir(inbox):
         path = os.path.join(inbox, name)
-        if not name.endswith(CAPTURES) or os.path.exists(os.path.join(out_dir, f"{stem(name)}.status.json")):
+        if not name.endswith(CAPTURES):
             continue
         try:
-            if not os.path.isfile(path):
+            if not os.path.isfile(path) or marker(out_dir, path) == fingerprint(path):
                 continue
             mtime = os.path.getmtime(path)
         except OSError:
@@ -73,6 +103,9 @@ def process(pcap: str, out_dir: str, run=subprocess.run, timeout: float = REPLAY
     EXIT_TIMEOUT when a step ran longer than timeout and was killed."""
     alerts = os.path.join(out_dir, f"{stem(pcap)}.alerts.jsonl")
     episodes = os.path.join(out_dir, f"{stem(pcap)}.episodes.jsonl")
+    for old in (alerts, episodes, os.path.join(out_dir, f"{stem(pcap)}.status.json")):
+        if os.path.exists(old):      # the detector appends; a replay starts clean, as in make replay
+            os.remove(old)
     for argv in ([sys.executable, os.path.join(APP, "run.py"), pcap],
                  [sys.executable, os.path.join(APP, "episodes.py"), alerts, episodes]):
         try:
@@ -120,11 +153,21 @@ def main() -> int:
         for pcap in pending(INBOX, OUT_DIR):
             if pcap in failed:
                 continue
+            other = conflict(OUT_DIR, pcap)
+            if other:
+                print(f"watch: {os.path.basename(pcap)} refused: its outputs would overwrite those of {other}; "
+                      "rename it", flush=True)
+                failed.add(pcap)
+                with lock:
+                    state["failed"] += 1
+                continue
             with lock:
                 state["current"] = os.path.basename(pcap)
             rc = process(pcap, OUT_DIR)
             print(f"watch: {os.path.basename(pcap)} done, exit {rc}", flush=True)
-            if rc != 0:
+            if rc == 0:
+                mark_done(OUT_DIR, pcap)
+            else:
                 failed.add(pcap)
             with lock:
                 state["processed" if rc == 0 else "failed"] += 1

@@ -180,7 +180,7 @@ scan-upstream: logstash
 	@for img in $(MONITORING_IMAGES); do \
 	  f=out/images/$$(echo $${img%%@*} | tr '/:' '__').tar; \
 	  docker pull -q $$img >/dev/null && docker save -o $$f $$img && \
-	  $(TOOLS) trivy image --input $$f --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 --no-progress; \
+	  $(TOOLS) trivy image --input $$f --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 --no-progress || exit 1; \
 	done
 
 # SPDX SBOM of each image (Syft), attached to every release.
