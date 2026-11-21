@@ -251,7 +251,7 @@ def test_the_review_puts_blocking_first_and_states_it_cannot_approve():
     assert lines[4] == "- **blocking** `ci/a.sh:4`, R-02 secret: key in 'code'"
     assert lines[5] == "- **note** `README.md`, docs: unit missing"
     assert "- x.png (binary)" in lines
-    assert "about $0.08" in body and "It cannot approve" in body      # 10k x $4 + 2k x $20 per million
+    assert "about $0.08" in body and "Neither can approve" in body      # 10k x $4 + 2k x $20 per million
 
 
 def test_no_price_is_claimed_for_a_fallback_or_an_unknown_model():
@@ -260,11 +260,41 @@ def test_no_price_is_claimed_for_a_fallback_or_an_unknown_model():
     assert review.cost_line(None) == "No model call."
 
 
-def test_the_reviewer_never_comments_or_reviews_a_pull_request():
-    # Both need pull-request write; the review lives in the check run instead (R-01).
+def test_comments_go_through_the_workflow_token_and_nothing_reviews():
+    # The App token sets the check only; the workflow token, which may not approve, posts the
+    # comment; nothing calls the reviews endpoint, where an approval would go (R-01).
     source = (ROOT / "ci" / "review.py").read_text()
-    assert "/comments" not in source and "/reviews" not in source
-    assert '"POST", f"/repos/{repo}/check-runs"' in source
+    assert "/reviews" not in source
+    assert 'return post_comment(repo, number, os.environ["COMMENT_TOKEN"], summary)' in source
+    assert '"POST", f"/repos/{repo}/check-runs", token' in source
+
+
+class FakeGitHub:
+    def __init__(self, comments, fail=None):
+        self.comments, self.fail, self.calls = comments, fail, []
+
+    def __call__(self, method, path, token, body=None):
+        self.calls.append((method, path, body))
+        if self.fail and method == self.fail:
+            raise review.urllib.error.HTTPError(path, 403, "Forbidden", {}, None)
+        return self.comments if method == "GET" else {}
+
+
+def test_the_review_comment_is_updated_in_place(monkeypatch):
+    old = {"id": 7, "user": {"login": "github-actions[bot]"}, "body": review.MARKER + "\nold"}
+    other = {"id": 8, "user": {"login": "danieldraghici"}, "body": review.MARKER + " quoted"}
+    gh = FakeGitHub([old, other])
+    monkeypatch.setattr(review, "github", gh)
+    assert review.post_comment("o/r", "5", "t", "new") == 0
+    assert gh.calls[-1] == ("PATCH", "/repos/o/r/issues/comments/7", {"body": review.MARKER + "\nnew"})
+
+
+def test_a_first_review_posts_and_a_refused_comment_fails_only_the_job(monkeypatch):
+    gh = FakeGitHub([])
+    monkeypatch.setattr(review, "github", gh)
+    assert review.post_comment("o/r", "5", "t", "x") == 0 and gh.calls[-1][0] == "POST"
+    monkeypatch.setattr(review, "github", FakeGitHub([], fail="POST"))
+    assert review.post_comment("o/r", "5", "t", "x") == 1
 
 
 def test_annotations_only_for_reviewed_paths_and_real_lines():
@@ -302,6 +332,8 @@ def workflow_problems(wf: dict) -> list[str]:
                 writes = {k for k, v in with_.items() if k.startswith("permission-") and v == "write"}
                 if writes != {"permission-checks"}:
                     problems.append(f"App token writes {sorted(writes)}")
+        if job.get("permissions") != {"contents": "read", "pull-requests": "write"}:
+            problems.append(f"job token permissions {job.get('permissions')}")
     return problems
 
 

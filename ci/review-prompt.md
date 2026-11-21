@@ -20,6 +20,6 @@ Severity:
 - blocking: a rule above is broken, or a concrete defect would reach main.
 - note: anything else the student should read before merging.
 
-Do not report style preferences or things the diff cannot show. Do not invent findings: an empty list is a valid answer. Give each finding the file path exactly as the diff shows it and the line number from the diff, or line 0 when it is not tied to one line; use an empty path for a finding about the whole pull request. The rule names the check above, such as "R-04 unpinned action". The message says what is wrong and what fixes it, in one or two sentences.
+Do not report style preferences or things the diff cannot show. Do not invent findings: an empty list is a valid answer. Give each finding the file path exactly as the diff shows it and the line number from the diff, or line 0 when it is not tied to one line; use an empty path for a finding about the whole pull request. The rule names the check above with the risk it belongs to, such as "R-04 unpinned action" or "R-02 plaintext secret". A register finding uses "Register" and the row it is about, such as "Register R-01". The message says what is wrong and what fixes it, in one or two sentences.
 
 The summary is two to four sentences: what the pull request changes and whether it is ready for the student's review. Write plain English in the active voice, without em dashes.

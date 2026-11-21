@@ -5,9 +5,11 @@ It reads the pull request through the GitHub API and never checks out or runs th
 request's code. The diff goes to Claude as data, with no tools. The App then completes the check
 run ai-review, which ruleset main-checks requires, with the review as its summary and as
 annotations on the lines it names. The App has no pull-request write permission, so it can
-neither comment nor approve: every merge stays the student's decision.
+neither comment nor approve. The workflow's own token posts the same review as one comment,
+updated in place; repository settings forbid that token to approve, so every merge stays
+the student's decision.
 
-    python ci/review.py           # workflow: REPO, PR_NUMBER, HEAD_SHA, APP_TOKEN, ANTHROPIC_API_KEY
+    python ci/review.py           # workflow: REPO, PR_NUMBER, HEAD_SHA, APP_TOKEN, COMMENT_TOKEN, ANTHROPIC_API_KEY
     python ci/review.py --local   # student: reviews git diff origin/main...HEAD, prints the review
 
 The check fails closed: a blocking finding, a declined request, an API error or a verdict that
@@ -28,6 +30,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PROMPT = Path(__file__).with_name("review-prompt.md")
 CHECK_NAME = "ai-review"
+MARKER = "<!-- ai-review -->"    # finds the review comment to update
 API = "https://api.github.com"
 
 # Claude Opus 5.5 at effort high: a review is judgement work, and one costs cents (docs/review.md).
@@ -255,8 +258,8 @@ def cost_line(meta: dict | None) -> str:
     return f"Model {served}, effort {EFFORT}; {tokens}."
 
 
-FOOTER = (f"The App only sets the check {CHECK_NAME}. It cannot approve; "
-          "the student decides the merge.")
+FOOTER = (f"The App sets the check {CHECK_NAME}; the workflow token posts this text. Neither can "
+          "approve; the student decides the merge.")
 
 
 def review_body(sha: str, verdict: dict, meta: dict | None, skipped: list[str]) -> str:
@@ -333,6 +336,22 @@ def run_in_ci() -> int:
         raise
     finish(repo, check["id"], token, result, heading, summary, notes)
     print(f"{CHECK_NAME}: {result}, {heading}")
+    return post_comment(repo, number, os.environ["COMMENT_TOKEN"], summary)
+
+
+def post_comment(repo: str, number: str, token: str, summary: str) -> int:
+    """The review as one pull-request comment, updated on each run; the check is already set."""
+    body = MARKER + "\n" + summary
+    try:
+        mine = [c for c in github("GET", f"/repos/{repo}/issues/{number}/comments?per_page=100", token)
+                if c["user"]["login"] == "github-actions[bot]" and c["body"].startswith(MARKER)]
+        if mine:
+            github("PATCH", f"/repos/{repo}/issues/comments/{mine[-1]['id']}", token, {"body": body})
+        else:
+            github("POST", f"/repos/{repo}/issues/{number}/comments", token, {"body": body})
+    except urllib.error.HTTPError as err:   # the gate is the check; a lost comment only fails the job
+        print(f"the review comment was not posted: HTTP {err.code}")
+        return 1
     return 0
 
 
