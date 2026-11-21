@@ -50,4 +50,6 @@ make demo-sensor-down    # stops the detector
 make demo-sensor-up      # starts it again; the alert resolves
 ```
 
+Measured on 2026-11-21: `make demo-sensor-down` at 08:52:53, SensorDown pending after about 70 s and firing after 1 min 45 s, then active in Alertmanager (`docs/evidence/R-06-sensor-down-alert.png`, `R-06-alert-rules.png`). A copy of `portscan.pcap` dropped into `inbox/` was replayed in about 30 s (4,100 alerts, 1 episode) and indexed within the next 15 s: 14,300 ML-IDS records written and 14,300 indexed.
+
 Live input: drop a capture into `inbox/`. The detector replays it within 10 s, Logstash indexes the output, and the "Records written and indexed" panel shows both counts meet.
