@@ -77,6 +77,8 @@ up: secrets enrich/ioc_ip.yml geoip
 	@# Prometheus and Alertmanager read their mounted configs only at start or on SIGHUP: a changed
 	@# alert rule takes effect on the next make up, without losing Prometheus's history.
 	@$(COMPOSE) kill -s SIGHUP prometheus alertmanager >/dev/null
+	@# The exporter holds no state; a restart loads a changed monitoring/exporter.py.
+	@$(COMPOSE) restart exporter >/dev/null 2>&1
 	@$(MAKE) --no-print-directory health
 
 # One node holds no replica, so the security plugin's audit-log indices would keep the cluster
