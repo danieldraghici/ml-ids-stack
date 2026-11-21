@@ -96,7 +96,7 @@ def test_empty_pull_never_replaces_the_dictionary(tmp_path, monkeypatch):
 def test_an_empty_pull_keeps_the_date_of_the_dictionary_in_use(tmp_path, monkeypatch):
     out, meta = tmp_path / "ioc_ip.yml", tmp_path / "ioc_ip.meta.json"
     out.write_text('"192.0.2.1": "{}"\n')
-    meta.write_text(json.dumps({"pulled_at": "2026-11-20T12:00:00+00:00", "result": "written"}))
+    meta.write_text(json.dumps({"pulled_at": "2026-11-20T12:00:00+00:00", "result": "written", "indicators": 24346}))
     monkeypatch.setattr(misp_pull, "OUT", out)
     monkeypatch.setattr(misp_pull, "META", meta)
     monkeypatch.setattr(misp_pull, "fetch", lambda: [])
@@ -104,6 +104,12 @@ def test_an_empty_pull_keeps_the_date_of_the_dictionary_in_use(tmp_path, monkeyp
         misp_pull.main()
     new = json.loads(meta.read_text())
     assert new["dictionary_written_at"] == "2026-11-20T12:00:00+00:00" and new["pulled_at"] != new["dictionary_written_at"]
+    assert new["dictionary_indicators"] == 24346 and new["indicators"] == 0     # in use, and what this pull brought
+    # a second empty pull keeps both again
+    with pytest.raises(SystemExit):
+        misp_pull.main()
+    again = json.loads(meta.read_text())
+    assert (again["dictionary_written_at"], again["dictionary_indicators"]) == ("2026-11-20T12:00:00+00:00", 24346)
 
 
 def test_a_pull_replaces_the_dictionary_atomically(tmp_path, monkeypatch):
@@ -118,6 +124,7 @@ def test_a_pull_replaces_the_dictionary_atomically(tmp_path, monkeypatch):
     assert not list(tmp_path.glob("*.tmp"))
     assert json.loads(meta.read_text())["indicators"] == 1
     assert json.loads(meta.read_text())["dictionary_written_at"] == json.loads(meta.read_text())["pulled_at"]
+    assert json.loads(meta.read_text())["dictionary_indicators"] == 1
 
 
 def test_feed_weights_file_parses():

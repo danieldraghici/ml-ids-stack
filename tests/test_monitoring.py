@@ -111,7 +111,7 @@ def test_feed_age_and_exposure_without_the_address(tmp_path):
     enrich.mkdir(); exposure.mkdir()
     (enrich / "ioc_ip.meta.json").write_text(json.dumps({
         "pulled_at": "2026-11-21T12:00:00+00:00", "result": "empty pull: previous dictionary kept",
-        "dictionary_written_at": "2026-11-20T12:00:00+00:00", "indicators": 24346}))
+        "dictionary_written_at": "2026-11-20T12:00:00+00:00", "dictionary_indicators": 24346, "indicators": 0}))
     (exposure / "changes.json").write_text(json.dumps({
         "baseline": False, "opened": [22, 8080], "closed": [], "checked_at": "2026-11-21T03:41:00+00:00"}))
     m = metrics(exporter.intel(str(enrich), str(exposure)))

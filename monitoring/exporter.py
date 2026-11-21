@@ -105,7 +105,9 @@ def intel(enrich_dir: str, exposure_dir: str) -> list[tuple[str, dict, float]]:
                     or (meta.get("pulled_at") if meta.get("result") == "written" else None))
     if written is not None:
         samples.append(("mlids_ioc_dictionary_timestamp_seconds", {}, written))
-        samples.append(("mlids_ioc_indicators", {}, meta.get("indicators", 0)))
+        in_use = meta.get("dictionary_indicators", meta.get("indicators") if meta.get("result") == "written" else None)
+        if in_use is not None:      # the dictionary Logstash uses, not what an empty pull brought
+            samples.append(("mlids_ioc_indicators", {}, in_use))
     if epoch(meta.get("pulled_at")) is not None:
         samples.append(("mlids_ioc_last_pull_timestamp_seconds", {}, epoch(meta["pulled_at"])))
     change = read_json(os.path.join(exposure_dir, "changes.json")) or {}

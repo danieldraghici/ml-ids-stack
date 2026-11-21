@@ -129,13 +129,16 @@ def fetch():
     return out
 
 
-def previous_dictionary_date():
-    """When the dictionary now in use was written, from the previous meta file, or None."""
+def previous_dictionary():
+    """When the dictionary now in use was written and how many indicators it holds, from the
+    previous meta file; (None, None) when there is none."""
     try:
         old = json.loads(META.read_text())
     except (OSError, ValueError):
-        return None
-    return old.get("dictionary_written_at") or (old.get("pulled_at") if old.get("result") == "written" else None)
+        return None, None
+    written = old.get("result") == "written"
+    return (old.get("dictionary_written_at") or (old.get("pulled_at") if written else None),
+            old.get("dictionary_indicators", old.get("indicators") if written else None))
 
 
 def main():
@@ -144,15 +147,15 @@ def main():
     text, stats = render(fetch(), weights, default, now)
     meta = {"pulled_at": now.isoformat(timespec="seconds"), "max_age_days": MAX_AGE_DAYS, **stats}
     if not text:
-        # The dictionary in use is still the previous one: keep its date, so IocFeedStale sees
-        # its real age and not the time of a pull that brought nothing.
+        # The dictionary in use is still the previous one: keep its date and size, so IocFeedStale
+        # and the dashboard see what Logstash enriches with, not a pull that brought nothing.
         meta["result"] = "empty pull: previous dictionary kept"
-        meta["dictionary_written_at"] = previous_dictionary_date()
+        meta["dictionary_written_at"], meta["dictionary_indicators"] = previous_dictionary()
         write_atomic(META, json.dumps(meta, indent=2) + "\n")
         sys.exit("misp-pull: MISP returned no usable indicator; the previous dictionary stays in place")
     write_atomic(OUT, text)
     meta["result"] = "written"
-    meta["dictionary_written_at"] = meta["pulled_at"]
+    meta["dictionary_written_at"], meta["dictionary_indicators"] = meta["pulled_at"], stats["indicators"]
     write_atomic(META, json.dumps(meta, indent=2) + "\n")
     print(f"misp-pull: {stats['indicators']} indicators from {stats['attributes']} attributes "
           f"({stats['aged_out']} aged out, {stats['cidr_skipped']} CIDR skipped, {stats['invalid']} invalid)")
