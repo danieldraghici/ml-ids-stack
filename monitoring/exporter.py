@@ -17,7 +17,9 @@ alert never reads a stale number as a live one.
 
 OpenSearch uses the demo certificate its image ships, whose CA key is public, so the TLS
 certificate is not verified here, as in Logstash (R-02). The connection stays inside the
-compose network; the password comes from the environment.
+compose network. The exporter logs in as its own user, monitor, whose role allows cluster
+health and searches of mlids-* and suricata-* only (scripts/monitor-user.sh); the password
+comes from the environment.
 
 Usage: exporter.py    env OUT_DIR, OPENSEARCH_URL, OPENSEARCH_USER, OPENSEARCH_PASSWORD,
                           LOGSTASH_URL, PORT
@@ -137,7 +139,7 @@ def getter(base: str, user: str | None = None, password: str | None = None):
 
 
 def main() -> None:
-    os_get = getter(OPENSEARCH_URL, os.environ.get("OPENSEARCH_USER", "admin"), os.environ["OPENSEARCH_PASSWORD"])
+    os_get = getter(OPENSEARCH_URL, os.environ["OPENSEARCH_USER"], os.environ["OPENSEARCH_PASSWORD"])
     ls_get = getter(LOGSTASH_URL)
 
     class Handler(BaseHTTPRequestHandler):

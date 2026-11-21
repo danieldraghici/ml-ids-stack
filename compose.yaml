@@ -93,6 +93,8 @@ services:
     build: detector
     image: ml-ids-stack/detector:local
     entrypoint: ["python", "/app/watch.py"]
+    # Back after a crash; make demo-sensor-down stops it on purpose, and stays stopped.
+    restart: unless-stopped
     user: "${DETECTOR_UID:?set it in .env}:${DETECTOR_GID:?set it in .env}"
     read_only: true
     tmpfs: [/tmp]
@@ -111,17 +113,21 @@ services:
       start_period: 20s
 
   # Metrics of the stack for Prometheus (monitoring/exporter.py, standard library only), run on
-  # the detector's pinned Python base: no image of its own to build or patch (R-04). It reads
-  # out/ read-only and asks OpenSearch and Logstash inside the compose network.
+  # the detector's pinned Python base, the same digest as detector/Dockerfile, so Trivy already
+  # scans it with the detector image: no image of its own to build or patch (R-04). It reads
+  # out/ read-only and asks OpenSearch and Logstash inside the compose network, as the
+  # read-only user monitor (scripts/monitor-user.sh), never as admin (R-02).
   exporter:
     image: python:3.14.10-slim-bookworm@sha256:3fe1a0b6c2d6b2ebb572906cdabeca75aeb558c0c17db5ffefbcf8094871c32b
     command: ["python", "/monitoring/exporter.py"]
+    restart: unless-stopped
     user: "65534:65534"
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     environment:
-      OPENSEARCH_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD:?run make secrets}
+      OPENSEARCH_USER: monitor
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_MONITOR_PASSWORD:?run make secrets}
       PYTHONDONTWRITEBYTECODE: "1"
     volumes:
       - ./monitoring/exporter.py:/monitoring/exporter.py:ro
@@ -133,6 +139,8 @@ services:
       retries: 5
       start_period: 10s
 
+  # Prometheus v3.16.0 (released 2026-11-05), Alertmanager v0.34.2 (2026-10-29) and Grafana
+  # 13.3.0 (2026-10-27): each past the 14-day cooldown on 2026-11-21 (R-04).
   # Alert rules in monitoring/alerts.yml, tested by promtool in CI. UI on 127.0.0.1 only.
   prometheus:
     image: prom/prometheus:v3.16.0@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06

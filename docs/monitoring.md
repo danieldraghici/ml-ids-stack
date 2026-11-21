@@ -7,7 +7,7 @@ A silent sensor looks the same as a quiet network. The monitoring turns the stac
 | Service | What it does | Reached at |
 |---|---|---|
 | `detector` | Replays every capture dropped into `inbox/` (`detector/watch.py`) and rewrites `out/heartbeat.json` every 10 s. It keeps the hardening of `make replay`: read-only, no network, no capabilities, an unprivileged user, and the model read-only and verified on every capture (R-07). | no port, no network |
-| `exporter` | `monitoring/exporter.py`, standard library only, on the detector's pinned Python base. It reads `out/` read-only and asks OpenSearch and Logstash, inside the compose network. | Prometheus only |
+| `exporter` | `monitoring/exporter.py`, standard library only, on the detector's pinned Python base. It reads `out/` read-only and asks OpenSearch and Logstash, inside the compose network. In OpenSearch it is the user `monitor`, whose role (`config/opensearch/stack-monitor-role.json`) allows cluster health and searches of `mlids-*` and `suricata-*` only. `make up` writes that role and user (`scripts/monitor-user.sh`). | Prometheus only |
 | `prometheus` | Scrapes the exporter every 15 s and evaluates `monitoring/alerts.yml`. | `127.0.0.1:PROMETHEUS_PORT` (9090) |
 | `alertmanager` | Keeps firing alerts. A lab has no pager, so the receiver has no integration. | `127.0.0.1:ALERTMANAGER_PORT` (9093) |
 | `grafana` | The dashboard "ML-IDS stack health" and the alert rules, provisioned from `monitoring/grafana/`. Admin password from `secrets/stack.enc.yaml`. | `https://localhost:8443/grafana/`, through the front door only |
@@ -31,7 +31,7 @@ A source that does not answer gets 0 in its `_up` metric and its other metrics a
 
 | Alert | Fires when | After |
 |---|---|---|
-| SensorDown | the heartbeat is older than 60 s, or missing | 30 s |
+| SensorDown | the heartbeat is older than 60 s, or missing. The heartbeat thread stops beating when the main loop has not advanced for longer than a replay may take, and a replay step that runs over 30 min is killed and counted as failed, so a hung detector is caught too. | 30 s |
 | PipelineStalled (`logstash-down`) | Logstash does not answer | 1 min |
 | PipelineStalled (`records-not-indexed`) | records in `out/` are not all in OpenSearch, per pipeline | 5 min |
 | OpenSearchDown | OpenSearch does not answer, or the cluster is red | 1 min |
@@ -52,4 +52,4 @@ make demo-sensor-up      # starts it again; the alert resolves
 
 Measured on 2026-11-21: `make demo-sensor-down` at 08:52:53, SensorDown pending after about 70 s and firing after 1 min 45 s, then active in Alertmanager (`docs/evidence/R-06-sensor-down-alert.png`, `R-06-alert-rules.png`). A copy of `portscan.pcap` dropped into `inbox/` was replayed in about 30 s (4,100 alerts, 1 episode) and indexed within the next 15 s: 14,300 ML-IDS records written and 14,300 indexed.
 
-Live input: drop a capture into `inbox/`. The detector replays it within 10 s, Logstash indexes the output, and the "Records written and indexed" panel shows both counts meet.
+Live input: drop a capture into `inbox/`. Once nothing has written to it for 5 s, the next listing (every 10 s) picks it up, so it starts within about 15 s. The detector replays it, Logstash indexes the output, and the "Records written and indexed" panel shows both counts meet.

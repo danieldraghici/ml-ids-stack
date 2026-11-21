@@ -165,7 +165,7 @@ How it works and why: `docs/review.md`. The student does these steps once, with 
 How it works: `docs/monitoring.md`. Once, before the next `make up`:
 
 1. Add to `.env` the new lines of `.env.example`: `PROMETHEUS_PORT`, `ALERTMANAGER_PORT`, and `DETECTOR_UID` and `DETECTOR_GID` (the output of `id -u` and `id -g`, so the detector's files in `out/` stay yours).
-2. Add the Grafana admin password to the SOPS file, as one more line `GRAFANA_ADMIN_PASSWORD: <password>`:
+2. Add two passwords to the SOPS file, one line each: `GRAFANA_ADMIN_PASSWORD: <password>` for Grafana's admin and `OPENSEARCH_MONITOR_PASSWORD: <password>` for the exporter's read-only OpenSearch user (at least 8 characters with upper and lower case, a digit and a symbol, no `"` or `\`):
 
    ```bash
    sops secrets/stack.enc.yaml

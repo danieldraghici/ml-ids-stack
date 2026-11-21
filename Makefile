@@ -73,6 +73,7 @@ up: secrets enrich/ioc_ip.yml geoip
 	@mkdir -p inbox out
 	$(COMPOSE) up -d --build --wait
 	@$(MAKE) --no-print-directory single-node
+	@bash scripts/monitor-user.sh
 	@$(MAKE) --no-print-directory health
 
 # One node holds no replica, so the security plugin's audit-log indices would keep the cluster

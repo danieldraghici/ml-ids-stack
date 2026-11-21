@@ -12,7 +12,7 @@ Plain English, active voice, short sentences. No em dashes, no filler, no market
 
 ## Stack conventions
 
-- Docker Compose v2, OpenSearch 2.x, Logstash 8.x, Suricata, Python 3.12, Bash in WSL2 Ubuntu.
+- Docker Compose v2, OpenSearch 2.x, Logstash 8.x, Suricata, Prometheus, Alertmanager, Grafana, Python 3.12 for the tools and CI (3.14 in the detector image, the model's training version), Bash in WSL2 Ubuntu.
 - Layout: `detector/` (ML sensor), `pipelines/` (Logstash), `rules/sigma/`, `enrichment/`, `monitoring/`, `tests/`, `docs/`, `tools/`.
 - Images are pinned by digest. GitHub Actions are pinned to a full commit SHA with the tag in a trailing comment. Python dependencies are pinned exactly. New versions wait 14 days before they are adopted. The one exception: a version that fixes a HIGH or CRITICAL finding Trivy reports may come in sooner, from the same official publisher, pinned by digest, with the finding named in the commit.
 - Ports and hostnames come from `.env`. Host ports bind to `127.0.0.1` only.

@@ -109,18 +109,44 @@ def test_pending_skips_done_growing_and_other_files(tmp_path, monkeypatch):
     assert [Path(p).name for p in watch.pending(str(inbox), str(outd), now=1000)] == ["old.pcap", "new.pcapng"]
 
 
+def test_a_capture_deleted_while_listed_is_skipped(tmp_path, monkeypatch):
+    inbox, outd = tmp_path / "inbox", tmp_path / "out"
+    inbox.mkdir(); outd.mkdir()
+    for name in ("gone.pcap", "kept.pcap"):
+        (inbox / name).write_bytes(b"x")
+        os.utime(inbox / name, (900, 900))
+    real = os.path.getmtime
+    monkeypatch.setattr(watch.os.path, "getmtime",
+                        lambda p: (_ for _ in ()).throw(FileNotFoundError(p)) if p.endswith("gone.pcap") else real(p))
+    assert [Path(p).name for p in watch.pending(str(inbox), str(outd), now=1000)] == ["kept.pcap"]
+
+
 def test_a_capture_goes_through_run_then_episodes(tmp_path):
     calls = []
-    run = lambda argv: calls.append(argv) or NS(returncode=0)
-    assert watch.process("/inbox/scan.pcap", "/out", run) == 0
-    assert calls[0][1].endswith("/run.py") and calls[0][2] == "/inbox/scan.pcap"
-    assert calls[1][1].endswith("/episodes.py") and calls[1][2:] == ["/out/scan.alerts.jsonl", "/out/scan.episodes.jsonl"]
+    run = lambda argv, timeout: calls.append((argv, timeout)) or NS(returncode=0)
+    assert watch.process("/inbox/scan.pcap", "/out", run, timeout=60) == 0
+    (first, t1), (second, t2) = calls
+    assert first[1].endswith("/run.py") and first[2] == "/inbox/scan.pcap" and t1 == 60
+    assert second[1].endswith("/episodes.py") and second[2:] == ["/out/scan.alerts.jsonl", "/out/scan.episodes.jsonl"]
 
 
 def test_a_refused_capture_stops_before_episodes():
     calls = []
-    run = lambda argv: calls.append(argv) or NS(returncode=3)     # model refused (run.py EXIT_MODEL)
+    run = lambda argv, timeout: calls.append(argv) or NS(returncode=3)     # model refused (run.py EXIT_MODEL)
     assert watch.process("/inbox/scan.pcap", "/out", run) == 3 and len(calls) == 1
+
+
+def test_a_hung_replay_is_killed_and_fails():
+    def run(argv, timeout):
+        raise watch.subprocess.TimeoutExpired(argv, timeout)
+    assert watch.process("/inbox/scan.pcap", "/out", run, timeout=1) == watch.EXIT_TIMEOUT
+
+
+def test_a_stuck_main_loop_stops_the_heartbeat():
+    # beats while the loop progressed within STALL_S (longer than the two timed steps of a replay)
+    assert watch.STALL_S > 2 * watch.REPLAY_TIMEOUT_S
+    assert watch.alive(progress=1000, now=1000 + watch.STALL_S)
+    assert not watch.alive(progress=1000, now=1001 + watch.STALL_S)
 
 
 def test_heartbeat_is_whole_json_with_the_time(tmp_path):
@@ -149,11 +175,22 @@ def test_the_detector_service_keeps_the_replay_hardening():
     assert "ports" not in d
 
 
-def test_the_exporter_reads_out_only_and_holds_no_secret_in_the_file():
+def test_the_exporter_reads_out_only_as_its_own_opensearch_user():
     e = SERVICES["exporter"]
     assert e["read_only"] is True and e["cap_drop"] == ["ALL"] and "ports" not in e
     assert "./out:/out:ro" in e["volumes"]
-    assert e["environment"]["OPENSEARCH_PASSWORD"].startswith("${")
+    assert e["environment"]["OPENSEARCH_USER"] == "monitor"
+    assert e["environment"]["OPENSEARCH_PASSWORD"] == "${OPENSEARCH_MONITOR_PASSWORD:?run make secrets}"
+    assert e["image"].split("@")[1] in (ROOT / "detector/Dockerfile").read_text()   # scanned with the detector
+
+
+def test_the_monitor_role_reads_health_and_the_stack_indices_only():
+    role = json.loads((ROOT / "config/opensearch/stack-monitor-role.json").read_text())
+    assert role["cluster_permissions"] == ["cluster:monitor/health"]
+    (grant,) = role["index_permissions"]
+    assert grant["index_patterns"] == ["mlids-*", "suricata-*"] and "*" not in grant["index_patterns"]
+    assert grant["allowed_actions"] == ["indices:data/read/search"]
+    assert "monitor-user.sh" in (ROOT / "Makefile").read_text()      # written on every make up
 
 
 def test_grafana_only_through_the_front_door_with_a_sops_password():
