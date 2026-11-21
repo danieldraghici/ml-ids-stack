@@ -66,9 +66,16 @@ def marker(out_dir: str, path: str) -> dict | None:
         return None
 
 
-def mark_done(out_dir: str, path: str) -> None:
+def mark_done(out_dir: str, path: str, replayed: dict | None = None) -> None:
+    """Record the version that was replayed: its fingerprint taken before the replay, so a file
+    replaced while it ran is not marked done."""
     with open(os.path.join(out_dir, f"{stem(path)}.inbox.json"), "w", encoding="utf-8") as fh:
-        json.dump(fingerprint(path), fh)
+        json.dump(replayed or fingerprint(path), fh)
+
+
+def version(fp: dict) -> tuple:
+    """A failed capture is remembered by content, so a finished copy under the same name runs again."""
+    return fp["name"], fp["size"], fp["mtime"]
 
 
 def conflict(out_dir: str, path: str) -> str | None:
@@ -146,18 +153,22 @@ def main() -> int:
 
     threading.Thread(target=beater, daemon=True).start()
     print(f"watch: replaying captures from {INBOX} into {OUT_DIR}", flush=True)
-    failed = set()      # a capture that failed (refused model, bad file, timeout) is not retried until a restart
+    failed = set()      # versions that failed (refused model, bad file, timeout): not retried until a restart
     while True:
         with lock:
             progress[0] = time.time()
         for pcap in pending(INBOX, OUT_DIR):
-            if pcap in failed:
+            try:
+                fp = fingerprint(pcap)      # before the replay: the version that actually runs
+            except OSError:
+                continue                    # gone since the listing
+            if version(fp) in failed:
                 continue
             other = conflict(OUT_DIR, pcap)
             if other:
                 print(f"watch: {os.path.basename(pcap)} refused: its outputs would overwrite those of {other}; "
                       "rename it", flush=True)
-                failed.add(pcap)
+                failed.add(version(fp))
                 with lock:
                     state["failed"] += 1
                 continue
@@ -166,9 +177,12 @@ def main() -> int:
             rc = process(pcap, OUT_DIR)
             print(f"watch: {os.path.basename(pcap)} done, exit {rc}", flush=True)
             if rc == 0:
-                mark_done(OUT_DIR, pcap)
+                try:
+                    mark_done(OUT_DIR, pcap, fp)
+                except OSError as err:     # out/ not writable: replayed, but it will run again
+                    print(f"watch: no done marker for {os.path.basename(pcap)}: {err}", flush=True)
             else:
-                failed.add(pcap)
+                failed.add(version(fp))
             with lock:
                 state["processed" if rc == 0 else "failed"] += 1
                 state["current"], state["last"] = None, os.path.basename(pcap)

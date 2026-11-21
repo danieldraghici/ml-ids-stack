@@ -31,13 +31,13 @@ A source that does not answer gets 0 in its `_up` metric and its other metrics a
 
 | Alert | Fires when | After |
 |---|---|---|
-| SensorDown | the heartbeat is older than 60 s, or missing. The heartbeat thread stops beating when the main loop has not advanced for longer than a replay may take, and a replay step that runs over 30 min is killed and counted as failed, so a hung detector is caught too. | 30 s |
+| SensorDown | the heartbeat is older than 60 s, or missing. The heartbeat thread stops beating when the main loop has not advanced for longer than a replay may take, and a replay step that runs over 30 min is killed and counted as failed, so a hung detector is caught too, but late: after about 61 min (two 30-min steps and three listings). | 30 s |
 | PipelineStalled (`logstash-down`) | Logstash does not answer | 1 min |
 | PipelineStalled (`records-not-indexed`) | records in `out/` are not all in OpenSearch, per pipeline | 5 min |
 | OpenSearchDown | OpenSearch does not answer, or the cluster is red | 1 min |
 | ExporterDown | Prometheus cannot scrape the exporter; without it the other alerts are blind | 1 min |
 
-`records-not-indexed` compares what the sensors wrote with what OpenSearch holds. That gap would have caught the Suricata records lost to a shared ruby variable before pull request 16: 510 of 9,880 records were missing on one ingest.
+`records-not-indexed` compares what the sensors wrote with what OpenSearch holds. Known limit: a replay under an old name clears the old output files, but the documents they produced stay in OpenSearch. Indexed then stays above written, and a later loss smaller than that surplus does not fire. `make down` and `make up` start both counts from the same files again. That gap would have caught the Suricata records lost to a shared ruby variable before pull request 16: 510 of 9,880 records were missing on one ingest.
 
 Every alert has a case where it fires and a case where it stays quiet in `monitoring/alerts.test.yml`. `make lint-ci`, and so the required check `lint`, runs `promtool test rules` on them, with `promtool check config` and `amtool check-config`. A changed threshold that breaks a case fails the pull request, like a changed detection rule.
 

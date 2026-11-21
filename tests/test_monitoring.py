@@ -145,6 +145,17 @@ def test_a_new_file_under_a_replayed_name_is_replayed(dirs):
     assert names(watch.pending(str(inbox), str(outd), now=1000)) == ["hulk.pcap"]
 
 
+def test_the_marker_records_the_version_that_ran(dirs):
+    # the file is replaced while its replay runs: the new content must not count as done
+    inbox, outd, drop = dirs
+    path = drop("scan.pcap", 100, b"first")
+    replayed = watch.fingerprint(path)
+    drop("scan.pcap", 50, b"replaced during the replay")
+    watch.mark_done(str(outd), path, replayed)
+    assert names(watch.pending(str(inbox), str(outd), now=1000)) == ["scan.pcap"]
+    assert watch.version(replayed) != watch.version(watch.fingerprint(path))   # a failed copy is retried once complete
+
+
 def test_a_capture_that_would_overwrite_another_is_refused(dirs):
     inbox, outd, drop = dirs
     watch.mark_done(str(outd), drop("a.pcap"))
