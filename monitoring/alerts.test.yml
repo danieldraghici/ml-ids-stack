@@ -1,0 +1,132 @@
+# promtool test rules monitoring/alerts.test.yml (make lint-ci). Every alert has a case where
+# it fires and one where it stays quiet. Series values are per 15 s step unless noted.
+rule_files:
+  - alerts.yml
+evaluation_interval: 15s
+
+tests:
+  # The detector stops: its last heartbeat was at 0 s. Fires once the beat is over 60 s old
+  # and that has held for 30 s.
+  - interval: 15s
+    input_series:
+      - series: mlids_detector_heartbeat_timestamp_seconds
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 60s
+        alertname: SensorDown
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: SensorDown
+        exp_alerts:
+          - exp_labels: { severity: critical, risk: R-06 }
+            exp_annotations:
+              summary: The ML-IDS detector has not beaten for over a minute; no flow is scored.
+
+  # A beating detector: the heartbeat follows the clock.
+  - interval: 15s
+    input_series:
+      - series: mlids_detector_heartbeat_timestamp_seconds
+        values: "0+15x20"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: SensorDown
+        exp_alerts: []
+
+  # No heartbeat at all, for example before the detector ever started.
+  - interval: 15s
+    input_series:
+      - series: logstash_up
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: SensorDown
+        exp_alerts:
+          - exp_labels: { severity: critical, risk: R-06 }
+            exp_annotations:
+              summary: The ML-IDS detector has not beaten for over a minute; no flow is scored.
+
+  # Logstash stops answering, and separately 3 Suricata records stay unindexed.
+  - interval: 1m
+    input_series:
+      - series: logstash_up
+        values: "1 1 0 0 0"
+      - series: 'mlids_out_records{pipeline="mlids"}'
+        values: "100x10"
+      - series: 'mlids_indexed_documents{pipeline="mlids"}'
+        values: "100x10"
+      - series: 'mlids_out_records{pipeline="suricata"}'
+        values: "50x10"
+      - series: 'mlids_indexed_documents{pipeline="suricata"}'
+        values: "47x10"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: PipelineStalled
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: PipelineStalled
+        exp_alerts:
+          - exp_labels: { severity: critical, risk: R-06, reason: logstash-down }
+            exp_annotations:
+              summary: Logstash does not answer; sensor output is not indexed.
+      - eval_time: 6m
+        alertname: PipelineStalled
+        exp_alerts:
+          - exp_labels: { severity: critical, risk: R-06, reason: logstash-down }
+            exp_annotations:
+              summary: Logstash does not answer; sensor output is not indexed.
+          - exp_labels: { severity: warning, risk: R-06, reason: records-not-indexed, pipeline: suricata }
+            exp_annotations:
+              summary: "suricata: 3 records in out/ are not in OpenSearch."
+
+  # Every record indexed and Logstash up: quiet.
+  - interval: 1m
+    input_series:
+      - series: logstash_up
+        values: "1x10"
+      - series: 'mlids_out_records{pipeline="mlids"}'
+        values: "100x10"
+      - series: 'mlids_indexed_documents{pipeline="mlids"}'
+        values: "100x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PipelineStalled
+        exp_alerts: []
+
+  # OpenSearch goes red, then stops answering; a yellow single node stays quiet.
+  - interval: 1m
+    input_series:
+      - series: opensearch_up
+        values: "1 1 1 1 1 0 0 0"
+      - series: opensearch_cluster_status
+        values: "1 1 2 2 2 _ _ _"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: OpenSearchDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: OpenSearchDown
+        exp_alerts:
+          - exp_annotations:
+              summary: OpenSearch does not answer or its cluster is red; alerts cannot be searched.
+            exp_labels: { severity: critical, risk: R-06 }
+      - eval_time: 7m
+        alertname: OpenSearchDown
+        exp_alerts:
+          - exp_annotations:
+              summary: OpenSearch does not answer or its cluster is red; alerts cannot be searched.
+            exp_labels: { severity: critical, risk: R-06 }
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="mlids-exporter"}'
+        values: "1 1 0 0 0"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ExporterDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: ExporterDown
+        exp_alerts:
+          - exp_labels: { severity: critical, risk: R-06, job: mlids-exporter }
+            exp_annotations:
+              summary: The stack exporter does not answer; the other alerts are blind.

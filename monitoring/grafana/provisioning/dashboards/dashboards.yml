@@ -1,0 +1,9 @@
+# Dashboards provisioned read-only from monitoring/grafana/dashboards/ (R-06).
+apiVersion: 1
+providers:
+  - name: ml-ids-stack
+    folder: ML-IDS stack
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

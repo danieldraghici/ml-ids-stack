@@ -1,4 +1,5 @@
-# Single-node OpenSearch, OpenSearch Dashboards and an nginx TLS front door (F3).
+# Single-node OpenSearch, OpenSearch Dashboards and an nginx TLS front door (F3); the ML-IDS
+# detector as a service, an exporter, Prometheus, Alertmanager and Grafana (F7, R-06).
 # - Images pinned by tag and digest; 2.19.6 was released 2026-10-15, past the 14-day cooldown (R-04).
 # - Host ports come from .env and bind to 127.0.0.1 only, so nothing listens on the laptop's network.
 # - The admin password comes from .env.secrets, which `make secrets` decrypts from
@@ -54,6 +55,8 @@ services:
     depends_on:
       opensearch-dashboards:
         condition: service_healthy
+      grafana:
+        condition: service_started
 
   # ML-IDS alerts and episodes into OpenSearch as ECS (R-06, R-08, F5). Built from
   # logstash/Dockerfile (Logstash OSS pinned by digest + the OpenSearch output plugin). It reads
@@ -82,6 +85,116 @@ services:
       opensearch:
         condition: service_healthy
 
+  # The ML-IDS detector as a service (R-06): it replays every capture dropped into inbox/
+  # (detector/watch.py) with the hardening of make replay: read-only, no network, no
+  # capabilities, an unprivileged user, the model read-only and verified on every capture (R-07).
+  # Its heartbeat, out/heartbeat.json, feeds the alert SensorDown.
+  detector:
+    build: detector
+    image: ml-ids-stack/detector:local
+    entrypoint: ["python", "/app/watch.py"]
+    # Back after a crash; make demo-sensor-down stops it on purpose, and stays stopped.
+    restart: unless-stopped
+    user: "${DETECTOR_UID:?set it in .env}:${DETECTOR_GID:?set it in .env}"
+    read_only: true
+    tmpfs: [/tmp]
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./models:/models:ro
+      - ./inbox:/inbox:ro
+      - ./out:/out
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json, sys, time; sys.exit(time.time() - json.load(open('/out/heartbeat.json'))['ts'] > 60)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Metrics of the stack for Prometheus (monitoring/exporter.py, standard library only), run on
+  # the detector's pinned Python base, the same digest as detector/Dockerfile, so Trivy already
+  # scans it with the detector image: no image of its own to build or patch (R-04). It reads
+  # out/ read-only and asks OpenSearch and Logstash inside the compose network, as the
+  # read-only user monitor (scripts/monitor-user.sh), never as admin (R-02).
+  exporter:
+    image: python:3.14.10-slim-bookworm@sha256:3fe1a0b6c2d6b2ebb572906cdabeca75aeb558c0c17db5ffefbcf8094871c32b
+    command: ["python", "/monitoring/exporter.py"]
+    restart: unless-stopped
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      OPENSEARCH_USER: monitor
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_MONITOR_PASSWORD:?run make secrets}
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ./monitoring/exporter.py:/monitoring/exporter.py:ro
+      - ./out:/out:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9108/metrics', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Prometheus v3.16.0 (released 2026-11-05), Alertmanager v0.34.2 (2026-10-29) and Grafana
+  # 13.3.0 (2026-10-27): each past the 14-day cooldown on 2026-11-21 (R-04).
+  # Alert rules in monitoring/alerts.yml, tested by promtool in CI. UI on 127.0.0.1 only.
+  prometheus:
+    image: prom/prometheus:v3.16.0@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:?set it in .env}:9090"
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.2@sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:?set it in .env}:9093"
+
+  # Grafana, reached only through the TLS front door under /grafana/. The admin password comes
+  # from secrets/stack.enc.yaml (R-02); data sources and the dashboard are provisioned from
+  # monitoring/grafana/. No anonymous access, no sign-up, no calls home.
+  grafana:
+    image: grafana/grafana:13.3.0@sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?run make secrets}
+      GF_SERVER_ROOT_URL: https://localhost:${HTTPS_PORT:?set it in .env}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
 volumes:
   opensearch-data:
   logstash-data:
+  prometheus-data:
+  alertmanager-data:
+  grafana-data:

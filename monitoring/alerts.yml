@@ -1,0 +1,46 @@
+# Alert rules of the detection stack (R-06). Each one turns a silent failure into a page:
+# without them a stopped sensor or a stuck pipeline reads as "no attacks". Tested with
+# promtool (monitoring/alerts.test.yml, make lint-ci); thresholds are in seconds.
+groups:
+  - name: ml-ids-stack
+    rules:
+      # Without the exporter every rule below goes quiet, so its own absence is an alert.
+      - alert: ExporterDown
+        expr: up{job="mlids-exporter"} == 0
+        for: 1m
+        labels: { severity: critical, risk: R-06 }
+        annotations:
+          summary: The stack exporter does not answer; the other alerts are blind.
+
+      # The detector rewrites out/heartbeat.json every 10 s (detector/watch.py). A heartbeat
+      # older than 60 s, or none at all, means the sensor is stopped or hung.
+      - alert: SensorDown
+        expr: (time() - mlids_detector_heartbeat_timestamp_seconds > 60) or absent(mlids_detector_heartbeat_timestamp_seconds)
+        for: 30s
+        labels: { severity: critical, risk: R-06 }
+        annotations:
+          summary: The ML-IDS detector has not beaten for over a minute; no flow is scored.
+
+      # Logstash does not answer: nothing new reaches OpenSearch.
+      - alert: PipelineStalled
+        expr: logstash_up == 0
+        for: 1m
+        labels: { severity: critical, risk: R-06, reason: logstash-down }
+        annotations:
+          summary: Logstash does not answer; sensor output is not indexed.
+
+      # Records the sensors wrote that OpenSearch does not hold, for 5 minutes. Logstash reads a
+      # new file within seconds, so a gap that lasts means lost or stuck records.
+      - alert: PipelineStalled
+        expr: (mlids_out_records - on(pipeline) mlids_indexed_documents) > 0
+        for: 5m
+        labels: { severity: warning, risk: R-06, reason: records-not-indexed }
+        annotations:
+          summary: "{{ $labels.pipeline }}: {{ $value }} records in out/ are not in OpenSearch."
+
+      - alert: OpenSearchDown
+        expr: opensearch_up == 0 or opensearch_cluster_status == 2
+        for: 1m
+        labels: { severity: critical, risk: R-06 }
+        annotations:
+          summary: OpenSearch does not answer or its cluster is red; alerts cannot be searched.
