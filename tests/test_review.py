@@ -219,6 +219,12 @@ def test_review_sends_main_rules_risk_ids_and_the_numbered_diff(anthropic_errors
     assert reviewed == {"a.py"} and meta["model"] == "claude-opus-5-5"
 
 
+def test_the_reviewer_model_and_its_price_are_known():
+    assert review.MODEL == "claude-sonnet-5-5" and review.MODEL in review.PRICES
+    meta = {"model": review.MODEL, "fallback": False, "input": 40_000, "output": 8_000}
+    assert "about $0.16" in review.cost_line(meta)     # 40k x $2 + 8k x $10 per million
+
+
 def test_a_binary_only_pull_request_needs_no_model_call(anthropic_errors):
     client = FakeClient(error=AssertionError("no call expected"))
     verdict, meta, _, skipped = review.review(

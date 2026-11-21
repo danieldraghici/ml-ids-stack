@@ -4,7 +4,7 @@ Every pull request to `main` gets an automated review before the student decides
 
 ## How a review runs
 
-1. A pull request is opened, gets a new push, has its title or description edited, or leaves draft. `.github/workflows/review.yml` starts on `pull_request_target`, so GitHub runs the workflow file as it is on `main`.
+1. A pull request is opened, gets a new push, or leaves draft. A description edit alone does not start a review, since it changes no code and each review costs money; re-running the job from the Actions tab reviews the new description. `.github/workflows/review.yml` starts on `pull_request_target`, so GitHub runs the workflow file as it is on `main`.
 2. The job checks out `main`, never the pull request's branch, and installs `requirements-review.txt` with `--require-hashes`.
 3. `actions/create-github-app-token` mints a one-hour installation token with checks write, pull requests and contents read. The token is revoked when the job ends.
 4. `ci/review.py` opens the check run `ai-review`, then reads the pull request's title, description and changed files through the API.
@@ -33,16 +33,16 @@ The check fails closed: a review that did not finish never counts as a pass. A b
 
 ## Model and cost
 
-The reviewer uses Claude Opus 5.5 (`claude-opus-5-5`) at effort `high`. The pre-PR sub-agent (`.claude/agents/reviewer.md`) already runs on a cheaper model; the CI review is the last automated check before the student's decision, so it uses the stronger one. Requests that the model's safety classifiers decline are re-run on the model Anthropic recommends for that category (`fallbacks: "default"`). Security code in a diff is ordinary review material, but a decline must not end the review.
+The reviewer uses Claude Sonnet 5.5 (`claude-sonnet-5-5`) at effort `high`. It started on Claude Opus 5.5, the stronger model. On the large monitoring pull request (22), each Opus review read 40,000 to 49,000 tokens and wrote 7,000 to 12,000, about USD 0.30 to 0.43. Each push and each description edit ran one, and the student's USD 5 budget did not last. Sonnet 5.5 costs half as much per token. The trade-off is accepted knowingly: Opus found subtle defects on pull request 22 (a hung replay that kept the heartbeat green, a done marker taken after the replay), and Sonnet may miss some of them. The student still reads every pull request, and the tests stay the gate for what they cover. Requests that the model's safety classifiers decline are re-run on the model Anthropic recommends for that category (`fallbacks: "default"`). Security code in a diff is ordinary review material, but a decline must not end the review.
 
-Price on 2026-11-20: USD 4 per million input tokens and USD 20 per million output tokens, thinking included. Each review is bounded:
+Price on 2026-11-21: USD 2 per million input tokens and USD 10 per million output tokens, thinking included (Opus 5.5: USD 4 and 20). Each review is bounded:
 
 | Part | Limit in `ci/review.py` | Most it can cost |
 |---|---|---|
-| Input | 400,000 characters of diff (`DIFF_LIMIT`), about 100,000 tokens | USD 0.40 |
-| Output | 32,000 tokens (`MAX_TOKENS`) | USD 0.64 |
+| Input | 400,000 characters of diff (`DIFF_LIMIT`), about 100,000 tokens | USD 0.20 |
+| Output | 32,000 tokens (`MAX_TOKENS`) | USD 0.32 |
 
-Measured on pull request 19 (2026-11-21): 3,149 input and 1,311 output tokens, about USD 0.04, in 16 s. Every review ends with its own token counts and cost, so the real figures are visible on each pull request. Files left out of the diff (binary, too large, over the budget) are listed in the review, never dropped silently.
+Measured with Opus 5.5 on 2026-11-21: pull request 19, 3,149 input and 1,311 output tokens, about USD 0.04, in 16 s; pull request 22, 49,163 input and 11,889 output tokens, about USD 0.43. Every review ends with its own token counts and cost, so the real figures are visible on each pull request. Files left out of the diff (binary, too large, over the budget) are listed in the review, never dropped silently.
 
 ## Run it locally
 

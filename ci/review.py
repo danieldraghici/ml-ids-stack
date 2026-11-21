@@ -33,14 +33,15 @@ CHECK_NAME = "ai-review"
 MARKER = "<!-- ai-review -->"    # finds the review comment to update
 API = "https://api.github.com"
 
-# Claude Opus 5.5 at effort high: a review is judgement work, and one costs cents (docs/review.md).
+# Claude Sonnet 5.5 at effort high: half the price of Opus 5.5 per token, chosen after Opus reviews of
+# large pull requests cost USD 0.30 to 0.43 each (docs/review.md, Model and cost).
 # fallbacks "default" re-runs a request the model's safety classifiers decline on the model
 # Anthropic recommends for that category, so security code in a diff does not end the review.
-MODEL = "claude-opus-5-5"
+MODEL = "claude-sonnet-5-5"
 EFFORT = "high"
 MAX_TOKENS = 32_000          # thinking plus the verdict; bounds the output cost of one review
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
-PRICES = {"claude-opus-5-5": (4.0, 20.0)}   # USD per million input and output tokens, 2026-11
+PRICES = {"claude-sonnet-5-5": (2.0, 10.0), "claude-opus-5-5": (4.0, 20.0)}   # USD per million in/out, 2026-11
 
 FILE_LIMIT = 60_000          # characters of one file's patch sent to the model
 DIFF_LIMIT = 400_000         # characters of the whole diff, about 100,000 tokens
