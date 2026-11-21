@@ -24,6 +24,9 @@ One exporter written here replaces an OpenSearch exporter, a Logstash exporter a
 | `mlids_indexed_documents{pipeline}` | `_count` of `mlids-*` and `suricata-*` in OpenSearch, error indices included |
 | `opensearch_up`, `opensearch_cluster_status` | `_cluster/health`: 0 green, 1 yellow, 2 red |
 | `logstash_up` | the Logstash monitoring API answers |
+| `mlids_ioc_dictionary_timestamp_seconds`, `mlids_ioc_indicators` | `enrich/ioc_ip.meta.json`: when the MISP dictionary in use was written (an empty pull keeps the old date) and its size |
+| `mlids_ioc_last_pull_timestamp_seconds` | the same file: the last pull, written or empty |
+| `mlids_exposure_checked_timestamp_seconds`, `mlids_exposure_ports_opened`, `_closed` | `exposure/changes.json`: the last check of the lab's public address. Counts and times only; the address never becomes a metric (R-10) |
 
 A source that does not answer gets 0 in its `_up` metric and its other metrics are left out. An alert never reads a stale number as a live one.
 
@@ -36,10 +39,24 @@ A source that does not answer gets 0 in its `_up` metric and its other metrics a
 | PipelineStalled (`records-not-indexed`) | records in `out/` are not all in OpenSearch, per pipeline | 5 min |
 | OpenSearchDown | OpenSearch does not answer, or the cluster is red | 1 min |
 | ExporterDown | Prometheus cannot scrape the exporter; without it the other alerts are blind | 1 min |
+| IocFeedStale (R-10) | the MISP dictionary in use is over 12 h old, or there is none | 10 min |
+| ExposureChanged (R-10) | the last weekly check found a port open that was closed the week before | at once |
+| ExposureCheckStale (R-10) | the weekly exposure check has not run for 8 days, or never | 10 min |
 
 `records-not-indexed` compares what the sensors wrote with what OpenSearch holds. Known limit: a replay under an old name clears the old output files, but the documents they produced stay in OpenSearch. Indexed then stays above written, and a later loss smaller than that surplus does not fire. `make down` and `make up` start both counts from the same files again. That gap would have caught the Suricata records lost to a shared ruby variable before pull request 16: 510 of 9,880 records were missing on one ingest.
 
 Every alert has a case where it fires and a case where it stays quiet in `monitoring/alerts.test.yml`. `make lint-ci`, and so the required check `lint`, runs `promtool test rules` on them, with `promtool check config` and `amtool check-config`. A changed threshold that breaks a case fails the pull request, like a changed detection rule.
+
+## Scheduled threat intelligence (R-10)
+
+`make schedule` writes two lines into the student's crontab in WSL, where cron runs under systemd. `make unschedule` removes them, and other crontab lines stay:
+
+| When | Job | Log |
+|---|---|---|
+| every 6 h, at minute 17 | `make misp-pull` | `out/cron-misp-pull.log` |
+| Mondays at 03:41 | `make exposure` | `out/cron-exposure.log` |
+
+Each job decrypts its keys with the student's age key, as by hand. A pull that fails, or MISP that is down, leaves the dictionary to age, and IocFeedStale fires after 12 hours. A check that stops fires ExposureCheckStale after 8 days. On a clone without MISP, IocFeedStale fires from the start: no feed is a stale feed.
 
 ## Rotating the monitoring passwords
 

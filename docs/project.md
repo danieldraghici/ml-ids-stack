@@ -152,11 +152,15 @@ R-10: a lab host that talks to known-bad infrastructure scores low when the beha
   | Suricata flows of the beacon | 15 | flow, no priority; **no sensor alerted** | medium, risk 48 |
 
   The same scan from its original address, 192.168.20.11, is in no feed. Its 11,773 records keep no priority and no tag. The beacon is the outcome that changes: the ML-IDS scores all 15 flows benign and no Suricata rule fires, yet the analyst sees them as medium, linked to a MISP event.
-- **Exposure** (`enrichment/shodan_exposure.py`, tested in `tests/test_shodan_exposure.py`): one lookup per run of the lab's own public address only. The address is printed masked and never committed. A free Shodan account has no host-API credits, so the lookup falls back to InternetDB, Shodan's free per-address service. First snapshot, 2026-11-20: the address is not indexed, and no open port is seen from the internet. `exposure/changes.json` records ports opened or closed since the previous run, for the F7 alert ExposureChanged.
+- **Exposure** (`enrichment/shodan_exposure.py`, tested in `tests/test_shodan_exposure.py`): one lookup per run of the lab's own public address only. The address is printed masked and never committed. A free Shodan account has no host-API credits, so the lookup falls back to InternetDB, Shodan's free per-address service. First snapshot, 2026-11-20: the address is not indexed, and no open port is seen from the internet. `exposure/changes.json` records ports opened or closed since the previous run; ExposureChanged fires on a newly open port.
+- **Freshness** (F7, `docs/monitoring.md`):
+  - `make schedule` puts the MISP pull every 6 hours and the exposure check every Monday into the student's crontab in WSL.
+  - The exporter reads when the dictionary in use was written and what the last check found. An empty pull keeps the old dictionary and its old date.
+  - IocFeedStale fires when the dictionary is over 12 hours old or missing, ExposureChanged on a newly open port, and ExposureCheckStale when the weekly check has not run for 8 days.
+  - A clone without MISP therefore shows IocFeedStale from the start: no feed is a stale feed.
 - **Not covered yet**:
   - domain and URL indicators;
   - CIDR indicators;
-  - the F7 alerts IocFeedStale (dictionary older than 12 h) and ExposureChanged. Until then a stale feed shows only in `enrich/ioc_ip.meta.json`.
 
 Evidence: `docs/evidence/R-10-misp-matched.png`, `docs/evidence/R-10-beacon-medium.png`, `docs/evidence/R-10-clean-untouched.png`.
 

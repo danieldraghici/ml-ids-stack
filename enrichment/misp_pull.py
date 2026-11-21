@@ -16,7 +16,8 @@ The feed lifecycle in one place:
 
 Output (git-ignored, live intelligence never goes into the repository):
   enrich/ioc_ip.yml        "<ip>": "<json with event, category, org, weight, tlp, updated>"
-  enrich/ioc_ip.meta.json  when it was pulled and what was kept or skipped (F7: IocFeedStale)
+  enrich/ioc_ip.meta.json  when it was pulled, when the dictionary in use was written, and what was kept or
+                           skipped; the exporter reads it for IocFeedStale (monitoring/alerts.yml)
 
 Usage: make misp-pull   (reads MISP_URL, MISP_KEY and MISP_CA from .env.secrets)
 """
@@ -128,17 +129,30 @@ def fetch():
     return out
 
 
+def previous_dictionary_date():
+    """When the dictionary now in use was written, from the previous meta file, or None."""
+    try:
+        old = json.loads(META.read_text())
+    except (OSError, ValueError):
+        return None
+    return old.get("dictionary_written_at") or (old.get("pulled_at") if old.get("result") == "written" else None)
+
+
 def main():
     weights, default = load_weights()
     now = datetime.now(timezone.utc)
     text, stats = render(fetch(), weights, default, now)
     meta = {"pulled_at": now.isoformat(timespec="seconds"), "max_age_days": MAX_AGE_DAYS, **stats}
     if not text:
+        # The dictionary in use is still the previous one: keep its date, so IocFeedStale sees
+        # its real age and not the time of a pull that brought nothing.
         meta["result"] = "empty pull: previous dictionary kept"
+        meta["dictionary_written_at"] = previous_dictionary_date()
         write_atomic(META, json.dumps(meta, indent=2) + "\n")
         sys.exit("misp-pull: MISP returned no usable indicator; the previous dictionary stays in place")
     write_atomic(OUT, text)
     meta["result"] = "written"
+    meta["dictionary_written_at"] = meta["pulled_at"]
     write_atomic(META, json.dumps(meta, indent=2) + "\n")
     print(f"misp-pull: {stats['indicators']} indicators from {stats['attributes']} attributes "
           f"({stats['aged_out']} aged out, {stats['cidr_skipped']} CIDR skipped, {stats['invalid']} invalid)")

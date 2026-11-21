@@ -38,6 +38,30 @@ groups:
         annotations:
           summary: "{{ $labels.pipeline }}: {{ $value }} records in out/ are not in OpenSearch."
 
+      # The MISP dictionary Logstash enriches with is over 12 h old, or there is none: matches
+      # against new indicators are missed (R-10). make schedule pulls every 6 h.
+      - alert: IocFeedStale
+        expr: (time() - mlids_ioc_dictionary_timestamp_seconds > 12 * 3600) or absent(mlids_ioc_dictionary_timestamp_seconds)
+        for: 10m
+        labels: { severity: warning, risk: R-10 }
+        annotations:
+          summary: The MISP dictionary is over 12 hours old or missing; new indicators are not matched.
+
+      # The weekly check of the lab's public address found a port that was closed the week before.
+      - alert: ExposureChanged
+        expr: mlids_exposure_ports_opened > 0
+        labels: { severity: warning, risk: R-10 }
+        annotations:
+          summary: "{{ $value }} port(s) newly open on the lab's public address (exposure/changes.json)."
+
+      # The weekly exposure check has not run for 8 days, or never: ExposureChanged would stay quiet.
+      - alert: ExposureCheckStale
+        expr: (time() - mlids_exposure_checked_timestamp_seconds > 8 * 86400) or absent(mlids_exposure_checked_timestamp_seconds)
+        for: 10m
+        labels: { severity: warning, risk: R-10 }
+        annotations:
+          summary: The exposure check of the lab's public address has not run for 8 days.
+
       - alert: OpenSearchDown
         expr: opensearch_up == 0 or opensearch_cluster_status == 2
         for: 1m

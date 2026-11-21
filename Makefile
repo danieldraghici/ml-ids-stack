@@ -2,7 +2,7 @@
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
 .PHONY: lint lint-ci test review secrets pki up down single-node health dashboards tls model model-check model-release \
         detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate \
-        misp-setup misp-up misp-down misp-pull exposure ti-demo geoip demo-sensor-down demo-sensor-up
+        misp-setup misp-up misp-down misp-pull exposure ti-demo geoip demo-sensor-down demo-sensor-up schedule unschedule
 
 # Where the dissertation's model bundle lives on this machine (never committed, R-07).
 MODEL_SRC ?= /mnt/d/ML_IDS_Disertation/ML_IDS_Disertation/models/nfv3_window_xgb_latest.joblib
@@ -70,10 +70,13 @@ geoip:
 
 up: secrets enrich/ioc_ip.yml geoip
 	@test -f certs/frontdoor.crt || { echo "no front-door certificate: run make pki"; exit 1; }
-	@mkdir -p inbox out
+	@mkdir -p inbox out exposure
 	$(COMPOSE) up -d --build --wait
 	@$(MAKE) --no-print-directory single-node
 	@bash scripts/monitor-user.sh
+	@# Prometheus and Alertmanager read their mounted configs only at start or on SIGHUP: a changed
+	@# alert rule takes effect on the next make up, without losing Prometheus's history.
+	@$(COMPOSE) kill -s SIGHUP prometheus alertmanager >/dev/null
 	@$(MAKE) --no-print-directory health
 
 # One node holds no replica, so the security plugin's audit-log indices would keep the cluster
@@ -272,3 +275,22 @@ demo-sensor-down:
 
 demo-sensor-up:
 	$(COMPOSE) start detector
+
+# R-10: the MISP pull every 6 hours and the exposure check every Monday, from the student's own
+# crontab in WSL (cron runs under systemd there). Each line carries the tag below, so schedule
+# replaces only its own lines and unschedule removes only them; other crontab lines stay.
+# The output goes to out/cron-*.log. A pull that fails leaves the dictionary to age, and
+# IocFeedStale fires after 12 hours; a check that stops fires ExposureCheckStale after 8 days.
+CRON_TAG := ml-ids-stack schedule
+CRON_PATH := /usr/local/bin:/usr/bin:/bin
+schedule:
+	@current="$$(crontab -l 2>/dev/null | grep -vF '# $(CRON_TAG)')"; \
+	{ [ -z "$$current" ] || printf '%s\n' "$$current"; \
+	   echo '17 */6 * * * cd $(CURDIR) && PATH=$(CRON_PATH) make misp-pull >> $(CURDIR)/out/cron-misp-pull.log 2>&1 # $(CRON_TAG)'; \
+	   echo '41 3 * * 1 cd $(CURDIR) && PATH=$(CRON_PATH) make exposure >> $(CURDIR)/out/cron-exposure.log 2>&1 # $(CRON_TAG)'; \
+	 } | crontab -
+	@crontab -l | grep -F '# $(CRON_TAG)'
+
+unschedule:
+	@current="$$(crontab -l 2>/dev/null | grep -vF '# $(CRON_TAG)')"; \
+	{ [ -z "$$current" ] || printf '%s\n' "$$current"; } | crontab -

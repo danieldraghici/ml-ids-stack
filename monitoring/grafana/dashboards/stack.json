@@ -1,120 +1,484 @@
 {
   "uid": "ml-ids-stack",
   "title": "ML-IDS stack health",
-  "description": "Sensor heartbeat, pipeline gap and OpenSearch health of the detection stack, with the alerts of monitoring/alerts.yml (R-06).",
-  "tags": ["ml-ids", "R-06"],
+  "description": "Sensor heartbeat, pipeline gap, OpenSearch health and threat-intel freshness of the detection stack, with the alerts of monitoring/alerts.yml (R-06, R-10).",
+  "tags": [
+    "ml-ids",
+    "R-06",
+    "R-10"
+  ],
   "timezone": "browser",
   "refresh": "10s",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": false,
-  "time": { "from": "now-30m", "to": "now" },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "panels": [
     {
       "id": 1,
       "type": "table",
       "title": "Firing alerts",
       "description": "Alerts Prometheus fires from monitoring/alerts.yml. Empty means healthy.",
-      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 7 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
-        { "refId": "A", "expr": "ALERTS{alertstate=\"firing\"}", "instant": true, "format": "table" }
+        {
+          "refId": "A",
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "instant": true,
+          "format": "table"
+        }
       ],
       "transformations": [
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Time": true, "Value": true, "__name__": true, "alertstate": true, "instance": true },
-            "indexByName": { "alertname": 0, "severity": 1, "reason": 2, "pipeline": 3, "risk": 4, "job": 5 }
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "alertstate": true,
+              "instance": true
+            },
+            "indexByName": {
+              "alertname": 0,
+              "severity": 1,
+              "reason": 2,
+              "pipeline": 3,
+              "risk": 4,
+              "job": 5
+            }
           }
         }
       ],
       "fieldConfig": {
-        "defaults": { "custom": { "align": "left" } },
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "alertname" },
-            "properties": [ { "id": "custom.cellOptions", "value": { "type": "color-background" } }, { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } } ]
+            "matcher": {
+              "id": "byName",
+              "options": "alertname"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
           }
         ]
       },
-      "options": { "showHeader": true }
+      "options": {
+        "showHeader": true
+      }
     },
     {
       "id": 2,
       "type": "stat",
       "title": "Detector heartbeat age",
       "description": "Seconds since detector/watch.py last wrote out/heartbeat.json. SensorDown fires above 60 s.",
-      "gridPos": { "x": 0, "y": 7, "w": 6, "h": 5 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [ { "refId": "A", "expr": "time() - mlids_detector_heartbeat_timestamp_seconds" } ],
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - mlids_detector_heartbeat_timestamp_seconds"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "s",
           "decimals": 0,
           "noValue": "no heartbeat",
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 60 } ] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 60
+              }
+            ]
+          }
         }
       },
-      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } }
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
     },
     {
       "id": 3,
       "type": "stat",
       "title": "OpenSearch cluster",
       "description": "0 green, 1 yellow (a single node holds no replica), 2 red; no value when OpenSearch does not answer.",
-      "gridPos": { "x": 6, "y": 7, "w": 6, "h": 5 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [ { "refId": "A", "expr": "opensearch_cluster_status" } ],
+      "gridPos": {
+        "x": 6,
+        "y": 7,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "opensearch_cluster_status"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "noValue": "down",
-          "mappings": [ { "type": "value", "options": { "0": { "text": "green", "color": "green" }, "1": { "text": "yellow", "color": "yellow" }, "2": { "text": "red", "color": "red" } } } ],
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 2 } ] }
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "green",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "yellow",
+                  "color": "yellow"
+                },
+                "2": {
+                  "text": "red",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          }
         }
       },
-      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } }
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
     },
     {
       "id": 4,
       "type": "stat",
       "title": "Logstash",
-      "gridPos": { "x": 12, "y": 7, "w": 6, "h": 5 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [ { "refId": "A", "expr": "logstash_up" } ],
+      "gridPos": {
+        "x": 12,
+        "y": 7,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "logstash_up"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
-          "mappings": [ { "type": "value", "options": { "0": { "text": "down", "color": "red" }, "1": { "text": "up", "color": "green" } } } ],
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "down",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "up",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
         }
       },
-      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } }
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
     },
     {
       "id": 5,
       "type": "stat",
       "title": "Captures replayed",
       "description": "Captures the running detector replayed from inbox/ since it started, and those it refused or failed on.",
-      "gridPos": { "x": 18, "y": 7, "w": 6, "h": 5 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "x": 18,
+        "y": 7,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
-        { "refId": "A", "expr": "mlids_detector_captures_processed", "legendFormat": "replayed" },
-        { "refId": "B", "expr": "mlids_detector_captures_failed", "legendFormat": "failed" }
+        {
+          "refId": "A",
+          "expr": "mlids_detector_captures_processed",
+          "legendFormat": "replayed"
+        },
+        {
+          "refId": "B",
+          "expr": "mlids_detector_captures_failed",
+          "legendFormat": "failed"
+        }
       ],
-      "options": { "colorMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+      "options": {
+        "colorMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
     },
     {
       "id": 6,
       "type": "timeseries",
       "title": "Records written and indexed",
       "description": "Lines the sensors wrote to out/ and documents OpenSearch holds, per pipeline. A gap that lasts 5 minutes fires PipelineStalled.",
-      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 9 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
-        { "refId": "A", "expr": "mlids_out_records", "legendFormat": "{{pipeline}} written" },
-        { "refId": "B", "expr": "mlids_indexed_documents", "legendFormat": "{{pipeline}} indexed" }
+        {
+          "refId": "A",
+          "expr": "mlids_out_records",
+          "legendFormat": "{{pipeline}} written"
+        },
+        {
+          "refId": "B",
+          "expr": "mlids_indexed_documents",
+          "legendFormat": "{{pipeline}} indexed"
+        }
       ],
-      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "MISP dictionary age",
+      "description": "Hours since the MISP dictionary in use was written (make misp-pull, every 6 h with make schedule). IocFeedStale fires above 12 h.",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(time() - mlids_ioc_dictionary_timestamp_seconds) / 3600"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "noValue": "no dictionary",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 12
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "MISP indicators",
+      "gridPos": {
+        "x": 8,
+        "y": 21,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mlids_ioc_indicators"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no dictionary"
+        }
+      },
+      "options": {
+        "colorMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Exposure: ports newly open",
+      "description": "Ports open on the lab's public address at the last weekly check that were closed at the one before. ExposureChanged fires above 0.",
+      "gridPos": {
+        "x": 16,
+        "y": 21,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mlids_exposure_ports_opened"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no check yet",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
     }
   ]
 }

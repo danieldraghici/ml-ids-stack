@@ -130,8 +130,12 @@ services:
       OPENSEARCH_PASSWORD: ${OPENSEARCH_MONITOR_PASSWORD:?run make secrets}
       PYTHONDONTWRITEBYTECODE: "1"
     volumes:
-      - ./monitoring/exporter.py:/monitoring/exporter.py:ro
+      # The folder, not single files: git replaces a file it switches, and a bind mount of a single
+      # file keeps showing the old one until the container is recreated.
+      - ./monitoring:/monitoring:ro
       - ./out:/out:ro
+      - ./enrich:/enrich:ro         # the MISP dictionary's meta file: IocFeedStale
+      - ./exposure:/exposure:ro     # the exposure check's changes: ExposureChanged
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9108/metrics', timeout=4)"]
       interval: 15s
@@ -149,8 +153,7 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./monitoring:/etc/prometheus:ro     # prometheus.yml and alerts.yml; a folder sees git's new files
       - prometheus-data:/prometheus
     ports:
       - "127.0.0.1:${PROMETHEUS_PORT:?set it in .env}:9090"
@@ -162,7 +165,7 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     volumes:
-      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./monitoring:/etc/alertmanager:ro   # alertmanager.yml; a folder sees git's new files
       - alertmanager-data:/alertmanager
     ports:
       - "127.0.0.1:${ALERTMANAGER_PORT:?set it in .env}:9093"
