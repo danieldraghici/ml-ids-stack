@@ -2,7 +2,8 @@
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
 .PHONY: lint lint-ci test review secrets pki up down single-node health dashboards tls model model-check model-release \
         detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate \
-        misp-setup misp-up misp-down misp-pull exposure ti-demo geoip demo-sensor-down demo-sensor-up schedule unschedule calibrate
+        misp-setup misp-up misp-down misp-pull exposure ti-demo geoip demo-sensor-down demo-sensor-up schedule unschedule calibrate \
+        reviewer-setup ti-demo-offline
 
 # Where the dissertation's model bundle lives on this machine (never committed, R-07).
 MODEL_SRC ?= /mnt/d/ML_IDS_Disertation/ML_IDS_Disertation/models/nfv3_window_xgb_latest.joblib
@@ -48,10 +49,16 @@ review:
 	git fetch -q origin main
 	sops exec-env secrets/review.enc.yaml '$(REVIEW_PYTHON) ci/review.py --local $(if $(BODY),--body-file "$(BODY)")'
 
+AGE_KEY := $(or $(SOPS_AGE_KEY_FILE),$(HOME)/.config/sops/age/keys.txt)
 secrets:
-	@test -f .env || { echo ".env is missing: cp .env.example .env"; exit 1; }
-	umask 077 && { sops -d secrets/stack.enc.yaml; test ! -f secrets/intel.enc.yaml || sops -d secrets/intel.enc.yaml; } \
-	  | sed 's/: /=/' > .env.secrets
+	@test -f .env || { echo ".env is missing: cp .env.example .env, or make reviewer-setup"; exit 1; }
+	@if [ ! -f "$(AGE_KEY)" ]; then \
+	  test -f .env.secrets || { echo "no age key and no .env.secrets: run make reviewer-setup"; exit 1; }; \
+	  echo "secrets: no age key; using the local .env.secrets of make reviewer-setup"; \
+	else \
+	  umask 077 && { sops -d secrets/stack.enc.yaml; test ! -f secrets/intel.enc.yaml || sops -d secrets/intel.enc.yaml; } \
+	    | sed 's/: /=/' > .env.secrets; \
+	fi
 
 # Lab PKI: root and intermediate CA outside the repo, front-door certificate in certs/ (30 days).
 pki:
@@ -78,7 +85,7 @@ up: secrets enrich/ioc_ip.yml geoip
 	@# alert rule takes effect on the next make up, without losing Prometheus's history.
 	@$(COMPOSE) kill -s SIGHUP prometheus alertmanager >/dev/null
 	@# The exporter holds no state; a restart loads a changed monitoring/exporter.py.
-	@$(COMPOSE) restart exporter >/dev/null 2>&1
+	@$(COMPOSE) restart exporter >/dev/null
 	@$(MAKE) --no-print-directory health
 
 # One node holds no replica, so the security plugin's audit-log indices would keep the cluster
@@ -137,7 +144,7 @@ model-check:
 model-release:
 	@mkdir -p models
 	gh release download $(MODEL_RELEASE) --clobber --dir models --pattern "$(MODEL)" --pattern "$(MODEL).sigstore.json"
-	cosign verify-blob --bundle "models/$(MODEL).sigstore.json" \
+	$(TOOLS) cosign verify-blob --bundle "models/$(MODEL).sigstore.json" \
 	  --certificate-identity-regexp "^https://github.com/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/\.github/workflows/release\.yml@refs/tags/v" \
 	  --certificate-oidc-issuer https://token.actions.githubusercontent.com "models/$(MODEL)" \
 	  || { rm -f "models/$(MODEL)"; exit 1; }
@@ -310,3 +317,28 @@ calibrate: detector
 	  -v "$$PWD/tests/fixtures/pcaps:/pcaps:ro" -v "$$PWD/out:/out" --entrypoint python ml-ids-stack/detector:local \
 	  /app/calibrate.py --benign "/capture/$(notdir $(CAPTURE))" --budget $(BUDGET) \
 	  --attacks /pcaps/portscan.pcap /pcaps/slowloris.pcap /pcaps/hulk1_head.pcap
+
+# A reviewer who clones the repository has no access to the student's age key or lab CA
+# (docs/setup.md, "Run it as a reviewer"). This writes, once and only if missing: .env from
+# .env.example with the reviewer's own user id, .env.secrets with new random passwords
+# (owner-only, git-ignored, deleted by make down) and a self-signed 30-day front-door certificate.
+reviewer-setup:
+	@test -f .env || { sed "s/^DETECTOR_UID=.*/DETECTOR_UID=$$(id -u)/; s/^DETECTOR_GID=.*/DETECTOR_GID=$$(id -g)/" .env.example > .env; echo ".env written from .env.example"; }
+	@test -f .env.secrets || { umask 077; python3 scripts/reviewer_secrets.py > .env.secrets; echo ".env.secrets written: new random passwords, owner-only"; }
+	@test -f certs/frontdoor.crt || { mkdir -p certs; umask 077; \
+	  openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=localhost" \
+	    -addext "subjectAltName=DNS:localhost,DNS:frontdoor.lab" \
+	    -keyout certs/frontdoor.key -out certs/frontdoor.crt 2>/dev/null; \
+	  chmod 644 certs/frontdoor.crt; echo "certs/frontdoor.crt: self-signed, 30 days"; }
+
+# The threat-intel demonstration without MISP or any key (R-10): the test dictionary of the
+# pipeline tests (documentation addresses, RFC 5737) becomes enrich/ioc_ip.yml when no real
+# dictionary is there, then make ti-demo replays the scan from 198.51.100.66. A real dictionary
+# from make misp-pull is never overwritten.
+OFFLINE_IOC := 198.51.100.66
+ti-demo-offline:
+	@if [ -s enrich/ioc_ip.yml ] && ! grep -qF '"$(OFFLINE_IOC)":' enrich/ioc_ip.yml; then \
+	  echo "enrich/ioc_ip.yml holds a real dictionary: use make ti-demo DEMO_IOC=<one of its addresses>"; exit 1; fi
+	@mkdir -p enrich && cp tests/samples/ioc_ip_test.yml enrich/ioc_ip.yml
+	@$(COMPOSE) restart logstash >/dev/null
+	@$(MAKE) --no-print-directory ti-demo DEMO_IOC=$(OFFLINE_IOC)
