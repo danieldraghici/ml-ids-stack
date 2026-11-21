@@ -10,7 +10,11 @@ a file exporter from third parties: less to pin and patch (R-04), and every metr
   ML-IDS, out/*.eve.json for Suricata, the same files Logstash reads) and the documents
   OpenSearch holds for each: PipelineStalled when records stay unindexed. This gap is the
   measure that would have caught the lost Suricata records of pull request 16;
-- OpenSearch cluster health and whether Logstash answers: OpenSearchDown, PipelineStalled.
+- OpenSearch cluster health and whether Logstash answers: OpenSearchDown, PipelineStalled;
+- the MISP dictionary's date and size (enrich/ioc_ip.meta.json, make misp-pull): IocFeedStale;
+- the last exposure check of the lab's public address (exposure/changes.json, make exposure):
+  ExposureChanged when a port opened, ExposureCheckStale when the weekly check stopped. Only
+  counts and times leave the file; the address itself is never read into a metric (R-10).
 
 A source that does not answer gives its _up metric 0 and leaves its other metrics out, so an
 alert never reads a stale number as a live one.
@@ -32,9 +36,12 @@ import json
 import os
 import ssl
 import urllib.request
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 OUT_DIR = os.environ.get("OUT_DIR", "/out")
+ENRICH_DIR = os.environ.get("ENRICH_DIR", "/enrich")
+EXPOSURE_DIR = os.environ.get("EXPOSURE_DIR", "/exposure")
 OPENSEARCH_URL = os.environ.get("OPENSEARCH_URL", "https://opensearch:9200")
 LOGSTASH_URL = os.environ.get("LOGSTASH_URL", "http://logstash:9600")
 PORT = int(os.environ.get("PORT", "9108"))
@@ -73,7 +80,46 @@ def heartbeat(out_dir: str) -> dict | None:
         return None
 
 
-def collect(out_dir: str, os_get, ls_get) -> list[tuple[str, dict, float]]:
+def read_json(path: str) -> dict | None:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        return doc if isinstance(doc, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def epoch(iso) -> float | None:
+    try:
+        return datetime.fromisoformat(iso).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def intel(enrich_dir: str, exposure_dir: str) -> list[tuple[str, dict, float]]:
+    """Feed age and exposure checks. A missing file leaves its metrics out, so the stale alerts
+    fire through absent(): no feed is a stale feed."""
+    samples = []
+    meta = read_json(os.path.join(enrich_dir, "ioc_ip.meta.json")) or {}
+    written = epoch(meta.get("dictionary_written_at")
+                    or (meta.get("pulled_at") if meta.get("result") == "written" else None))
+    if written is not None:
+        samples.append(("mlids_ioc_dictionary_timestamp_seconds", {}, written))
+        in_use = meta.get("dictionary_indicators", meta.get("indicators") if meta.get("result") == "written" else None)
+        if in_use is not None:      # the dictionary Logstash uses, not what an empty pull brought
+            samples.append(("mlids_ioc_indicators", {}, in_use))
+    if epoch(meta.get("pulled_at")) is not None:
+        samples.append(("mlids_ioc_last_pull_timestamp_seconds", {}, epoch(meta["pulled_at"])))
+    change = read_json(os.path.join(exposure_dir, "changes.json")) or {}
+    if epoch(change.get("checked_at")) is not None:
+        samples.append(("mlids_exposure_checked_timestamp_seconds", {}, epoch(change["checked_at"])))
+        samples.append(("mlids_exposure_ports_opened", {}, len(change.get("opened") or [])))
+        samples.append(("mlids_exposure_ports_closed", {}, len(change.get("closed") or [])))
+    return samples
+
+
+def collect(out_dir: str, os_get, ls_get, enrich_dir: str = ENRICH_DIR,
+            exposure_dir: str = EXPOSURE_DIR) -> list[tuple[str, dict, float]]:
     """(metric, labels, value) for one scrape. os_get/ls_get fetch a path as JSON or raise OSError."""
     samples = []
     beat = heartbeat(out_dir)
@@ -95,6 +141,8 @@ def collect(out_dir: str, os_get, ls_get) -> list[tuple[str, dict, float]]:
         found = [("opensearch_up", {}, 0)]      # no half answer: health and counts come together or not at all
     samples += found
 
+    samples += intel(enrich_dir, exposure_dir)
+
     try:
         ls_get("/")
         samples.append(("logstash_up", {}, 1))
@@ -113,6 +161,12 @@ HELP = {
     "opensearch_up": "1 if OpenSearch answered the cluster health request.",
     "opensearch_cluster_status": "OpenSearch cluster status: 0 green, 1 yellow, 2 red.",
     "logstash_up": "1 if the Logstash monitoring API answered.",
+    "mlids_ioc_dictionary_timestamp_seconds": "Unix time the MISP dictionary in use was written (make misp-pull).",
+    "mlids_ioc_indicators": "Indicators in the MISP dictionary in use.",
+    "mlids_ioc_last_pull_timestamp_seconds": "Unix time of the last MISP pull, written or empty.",
+    "mlids_exposure_checked_timestamp_seconds": "Unix time of the last exposure check of the lab's public address.",
+    "mlids_exposure_ports_opened": "Ports open at the last check that were closed at the one before.",
+    "mlids_exposure_ports_closed": "Ports closed at the last check that were open at the one before.",
 }
 
 

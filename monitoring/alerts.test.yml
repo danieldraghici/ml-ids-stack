@@ -130,3 +130,73 @@ tests:
           - exp_labels: { severity: critical, risk: R-06, job: mlids-exporter }
             exp_annotations:
               summary: The stack exporter does not answer; the other alerts are blind.
+
+  # The dictionary was written at 0 s and is never refreshed: quiet at 12 h, firing 10 min later.
+  # Samples every 5 min, Prometheus's lookback, so absent() never sees a gap between them.
+  - interval: 5m
+    input_series:
+      - series: mlids_ioc_dictionary_timestamp_seconds
+        values: "0x160"
+    alert_rule_test:
+      - eval_time: 12h
+        alertname: IocFeedStale
+        exp_alerts: []
+      - eval_time: 12h30m
+        alertname: IocFeedStale
+        exp_alerts:
+          - exp_labels: { severity: warning, risk: R-10 }
+            exp_annotations:
+              summary: The MISP dictionary is over 12 hours old or missing; new indicators are not matched.
+
+  # A pull every 6 h keeps it fresh, at every evaluation, not only on a sample.
+  - interval: 5m
+    input_series:
+      - series: mlids_ioc_dictionary_timestamp_seconds
+        values: "0x71 21600x72 43200x72"
+    alert_rule_test:
+      - eval_time: 11h57m
+        alertname: IocFeedStale
+        exp_alerts: []
+      - eval_time: 17h
+        alertname: IocFeedStale
+        exp_alerts: []
+
+  # A port opens on the public address at the third check; none at the first two.
+  - interval: 1m
+    input_series:
+      - series: mlids_exposure_ports_opened
+        values: "0 0 2 2"
+      - series: mlids_exposure_checked_timestamp_seconds
+        values: "0+60x3"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ExposureChanged
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: ExposureChanged
+        exp_alerts:
+          - exp_labels: { severity: warning, risk: R-10 }
+            exp_annotations:
+              summary: "2 port(s) newly open on the lab's public address (exposure/changes.json)."
+      - eval_time: 3m
+        alertname: ExposureCheckStale
+        exp_alerts: []
+
+  # The weekly check stopped after its run at 0 s. Samples every 5 min, as above.
+  - interval: 5m
+    input_series:
+      - series: mlids_exposure_checked_timestamp_seconds
+        values: "0x2420"
+    alert_rule_test:
+      - eval_time: 6d23h57m
+        alertname: ExposureCheckStale
+        exp_alerts: []
+      - eval_time: 7d
+        alertname: ExposureCheckStale
+        exp_alerts: []
+      - eval_time: 8d1h
+        alertname: ExposureCheckStale
+        exp_alerts:
+          - exp_labels: { severity: warning, risk: R-10 }
+            exp_annotations:
+              summary: The exposure check of the lab's public address has not run for 8 days.

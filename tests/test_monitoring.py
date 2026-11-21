@@ -106,6 +106,66 @@ def test_exposition_format():
     assert all(name in exporter.HELP for name in re.findall(r"^# TYPE (\S+)", text, re.M))
 
 
+def test_feed_age_and_exposure_without_the_address(tmp_path):
+    enrich, exposure = tmp_path / "enrich", tmp_path / "exposure"
+    enrich.mkdir(); exposure.mkdir()
+    (enrich / "ioc_ip.meta.json").write_text(json.dumps({
+        "pulled_at": "2026-11-21T12:00:00+00:00", "result": "empty pull: previous dictionary kept",
+        "dictionary_written_at": "2026-11-20T12:00:00+00:00", "dictionary_indicators": 24346, "indicators": 0}))
+    (exposure / "changes.json").write_text(json.dumps({
+        "baseline": False, "opened": [22, 8080], "closed": [], "checked_at": "2026-11-21T03:41:00+00:00"}))
+    m = metrics(exporter.intel(str(enrich), str(exposure)))
+    assert m[("mlids_ioc_dictionary_timestamp_seconds", ())] == 1795176000.0      # the dictionary's date, not the empty pull's
+    assert m[("mlids_ioc_last_pull_timestamp_seconds", ())] == 1795262400.0
+    assert m[("mlids_ioc_indicators", ())] == 24346
+    assert m[("mlids_exposure_ports_opened", ())] == 2 and m[("mlids_exposure_ports_closed", ())] == 0
+    assert all("ip" not in name for name, _ in m)                                  # counts and times only
+
+
+def test_no_feed_and_no_check_leave_the_metrics_out(tmp_path):
+    # absent() then fires IocFeedStale and ExposureCheckStale: no feed is a stale feed
+    assert exporter.intel(str(tmp_path / "none"), str(tmp_path / "none")) == []
+    (tmp_path / "ioc_ip.meta.json").write_text(json.dumps({"pulled_at": "2026-11-21T12:00:00+00:00",
+                                                           "result": "empty pull: previous dictionary kept"}))
+    names = {n for n, _, _ in exporter.intel(str(tmp_path), str(tmp_path / "none"))}
+    assert names == {"mlids_ioc_last_pull_timestamp_seconds"}
+
+
+def test_the_exporter_reads_the_intel_outputs_read_only():
+    vols = SERVICES["exporter"]["volumes"]
+    assert any(v.startswith("./enrich:/enrich:ro") for v in vols) and any(v.startswith("./exposure:/exposure:ro") for v in vols)
+
+
+@pytest.fixture
+def crontab(tmp_path):
+    """A stand-in crontab command that keeps the table in a file."""
+    table, bin_dir = tmp_path / "table", tmp_path / "bin"
+    bin_dir.mkdir()
+    table.write_text("0 1 * * * echo the student's own job\n")
+    (bin_dir / "crontab").write_text(
+        '#!/usr/bin/env bash\nif [ "$1" = "-l" ]; then cat "$TABLE"; else data=$(cat); printf "%s\\n" "$data" > "$TABLE"; fi\n')
+    (bin_dir / "crontab").chmod(0o755)
+    env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}", TABLE=str(table))
+
+    def make(target):
+        return subprocess.run(["make", "--no-print-directory", "-C", str(ROOT), target], env=env,
+                              capture_output=True, text=True, check=True)
+    return table, make
+
+
+def test_schedule_installs_its_two_jobs_once_and_unschedule_removes_only_them(crontab):
+    table, make = crontab
+    make("schedule"); make("schedule")
+    lines = table.read_text().splitlines()
+    ours = [l for l in lines if l.endswith("# ml-ids-stack schedule")]
+    assert len(ours) == 2 and "0 1 * * * echo the student's own job" in lines
+    assert ours[0].startswith("17 */6 * * * ") and "make misp-pull" in ours[0]      # every 6 hours
+    assert ours[1].startswith("41 3 * * 1 ") and "make exposure" in ours[1]        # Mondays
+    assert all("PATH=/usr/local/bin:/usr/bin:/bin " in l for l in ours)
+    make("unschedule")
+    assert table.read_text().splitlines() == ["0 1 * * * echo the student's own job"]
+
+
 # ---------------------------------------------------------------- detector watch loop
 
 @pytest.fixture
@@ -221,10 +281,11 @@ def test_heartbeat_is_whole_json_with_the_time(tmp_path):
 def test_every_alert_has_a_promtool_case_and_a_risk():
     rules = [r for g in yaml.safe_load((ROOT / "monitoring/alerts.yml").read_text())["groups"] for r in g["rules"]]
     tested = set(re.findall(r"alertname: (\w+)", (ROOT / "monitoring/alerts.test.yml").read_text()))
-    assert {"SensorDown", "PipelineStalled", "OpenSearchDown", "ExporterDown"} <= {r["alert"] for r in rules}
+    assert {"SensorDown", "PipelineStalled", "OpenSearchDown", "ExporterDown",
+            "IocFeedStale", "ExposureChanged", "ExposureCheckStale"} <= {r["alert"] for r in rules}
     for rule in rules:
         assert rule["alert"] in tested, f"{rule['alert']} has no promtool test"
-        assert rule["labels"]["risk"] == "R-06"
+        assert rule["labels"]["risk"] in ("R-06", "R-10")
 
 
 def test_the_detector_service_keeps_the_replay_hardening():

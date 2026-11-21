@@ -124,7 +124,7 @@ The model reaches CI as an asset of the release `model-v1`, uploaded once by the
 
 ## 7. MISP and Shodan (F6)
 
-`docs/misp-setup.md`: MISP on localhost (`make misp-up`), the first login, the feeds, the keys in `secrets/intel.enc.yaml`, then `make misp-pull`, `make exposure` and `make ti-demo`. The MISP and Shodan clients live in their own virtual environment:
+`docs/misp-setup.md`: MISP on localhost (`make misp-up`), the first login, the feeds, the keys in `secrets/intel.enc.yaml`, then `make misp-pull`, `make exposure` and `make ti-demo`. `make schedule` runs the pull every 6 hours and the exposure check every Monday from your crontab (`docs/monitoring.md`); `make unschedule` stops them. The MISP and Shodan clients live in their own virtual environment:
 
 ```bash
 python3 -m venv ~/.venvs/intel && ~/.venvs/intel/bin/pip install --require-hashes -r requirements-intel.txt
