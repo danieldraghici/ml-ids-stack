@@ -45,3 +45,20 @@ def test_secrets_without_an_age_key_or_reviewer_secrets_says_what_to_run(tmp_pat
     (tmp_path / ".env").write_text("OPENSEARCH_PORT=9200\n")
     result = make("secrets", tmp_path, {"SOPS_AGE_KEY_FILE": str(tmp_path / "no-such-key")})
     assert result.returncode != 0 and "make reviewer-setup" in result.stdout + result.stderr
+
+
+def test_ti_demo_builds_its_capture_with_the_python_that_has_scapy(tmp_path):
+    # the system python3 has no scapy; make ti-demo must not depend on an activated venv
+    makefile = (ROOT / "Makefile").read_text()
+    block = makefile[makefile.index("\nti-demo:"):makefile.index("\nti-demo-offline:")]
+    assert "$(DEV_PYTHON) enrichment/make_demo.py" in block and "import scapy" in block
+    assert "python3 enrichment/make_demo.py" not in makefile
+    def dev_python(home):
+        return subprocess.run(["make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
+                               "--eval=show-dev-python: ; @echo $(DEV_PYTHON)", "show-dev-python"],
+                              cwd=tmp_path, env=dict(os.environ, HOME=str(home)), capture_output=True, text=True).stdout.strip()
+    assert dev_python(tmp_path) == "python3"                       # no dev environment: the system python3
+    venv = tmp_path / ".venvs/secops/bin"
+    venv.mkdir(parents=True)
+    (venv / "python").write_text("")
+    assert dev_python(tmp_path) == str(venv / "python")           # the dev environment, which has scapy

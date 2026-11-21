@@ -175,7 +175,7 @@ How it works: `docs/monitoring.md`. Once, before the next `make up`:
 
 ## 10. Run it as a reviewer (F7)
 
-A reviewer who clones the repository has no access to the student's age key, lab CA, MISP or Shodan keys. Tools: Docker, `make`, `python3`, `openssl`, the GitHub CLI, and `tcprewrite` (package `tcpreplay`) for the threat-intel demonstration.
+A reviewer who clones the repository has no access to the student's age key, lab CA, MISP or Shodan keys. Tools: Docker, `make`, `python3`, `openssl`, the GitHub CLI, and for the threat-intel demonstration `tcprewrite` (package `tcpreplay`) and the development environment of section 1, which has scapy.
 
 ```bash
 make reviewer-setup     # .env, new random passwords in .env.secrets, a self-signed 30-day certificate

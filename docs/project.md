@@ -166,7 +166,9 @@ Evidence: `docs/evidence/R-10-misp-matched.png`, `docs/evidence/R-10-beacon-medi
 
 ## 7. Demonstration
 
-The recorded demonstration follows `docs/demo.md`, about 6 minutes, each step tied to a risk:
+**Recording:** [demo.mp4 on Google Drive](https://drive.google.com/drive/folders/1GEm2LODJGIOUXX-QxwUn7z56UDmC2srq?usp=sharing), shared with the professor; a silent screen recording of the steps below, run on a clean stack.
+
+The recorded demonstration follows `docs/demo.md`, each step tied to a risk:
 
 | Step | Shows | Row | Evidence |
 |---|---|---|---|
