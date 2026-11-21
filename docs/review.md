@@ -1,16 +1,17 @@
 # Automated pull-request review (F7)
 
-Every pull request to `main` gets an automated review before the student decides on the merge. The GitHub App `ml-ids-stack-agent` sets the check `ai-review`, with the review as its summary and as annotations under Files changed. Ruleset `main-checks` requires that check, so no pull request merges without a completed review. The App cannot approve, so the review never replaces the student's decision (R-01).
+Every pull request to `main` gets an automated review before the student decides on the merge. The GitHub App `ml-ids-stack-agent` sets the check `ai-review`, with the review as its summary and as annotations under Files changed. The workflow's own token posts the same review as a comment on the pull request. Ruleset `main-checks` requires that check, so no pull request merges without a completed review. The App cannot approve, so the review never replaces the student's decision (R-01).
 
 ## How a review runs
 
-1. A pull request is opened, gets a new push, or leaves draft. `.github/workflows/review.yml` starts on `pull_request_target`, so GitHub runs the workflow file as it is on `main`.
+1. A pull request is opened, gets a new push, has its title or description edited, or leaves draft. `.github/workflows/review.yml` starts on `pull_request_target`, so GitHub runs the workflow file as it is on `main`.
 2. The job checks out `main`, never the pull request's branch, and installs `requirements-review.txt` with `--require-hashes`.
 3. `actions/create-github-app-token` mints a one-hour installation token with checks write, pull requests and contents read. The token is revoked when the job ends.
 4. `ci/review.py` opens the check run `ai-review`, then reads the pull request's title, description and changed files through the API.
 5. The diff goes to Claude as data, with every line numbered as in the new file. There are no tools, so the model can read but not act. The system prompt is `ci/review-prompt.md` plus the sections "Stack conventions" and "Banned patterns" of `CLAUDE.md` on `main`. The risk IDs of `RISK-REGISTER.md` on `main` come with the diff.
 6. The model answers in a fixed JSON schema: a summary and a list of findings, each `blocking` or `note`, with file, line, rule and message.
 7. The App completes the check run with the review as its summary, opened from Details next to `ai-review` in the pull request's checks. Findings tied to a line also appear as annotations under Files changed.
+8. The workflow's own token (`github-actions[bot]`) posts the review as one comment on the pull request and updates that comment on later runs.
 
 | Outcome | Check `ai-review` |
 |---|---|
@@ -24,7 +25,7 @@ The check fails closed: a review that did not finish never counts as a pass. A b
 
 ## Why this design (R-01, R-03, R-04, R-05)
 
-- **No approval.** The App has pull requests read only. Approving needs pull requests write, which it does not have, so a poisoned or wrong review cannot count toward ruleset `main-review`. For the same reason it does not comment: GitHub accepts a comment on a pull request only from a token that may write to pull requests (the first runs, on 2026-11-21, were refused with HTTP 403), so the review lives in the check run.
+- **No approval.** The App has pull requests read only. Approving needs pull requests write, which it does not have, so a poisoned or wrong review cannot count toward ruleset `main-review`. For the same reason it does not comment: GitHub accepts a comment on a pull request only from a token that may write to pull requests (the first runs, on 2026-11-21, were refused with HTTP 403), so the App keeps out of the conversation. The comment comes from the workflow's own token instead: the job gives it pull-request write, and the repository setting that forbids GitHub Actions to approve pull requests keeps it from approving (`docs/evidence/R-04-workflow-permissions.png`). The required check stays the App's.
 - **The check is bound to the App.** `main-checks` requires `ai-review` from integration 5667084, the App. A job named `ai-review` in a branch's own workflow runs as GitHub Actions (integration 15368) and does not satisfy the rule.
 - **The branch cannot reach the secrets.** `pull_request_target` runs `main`'s workflow and `main`'s `ci/review.py`, and neither runs code from the branch. The pull request's title and description reach the script through the API, never inside a `run:` line, so they cannot inject shell commands. The App key and the API key are secrets of the environment `ai-review`, which only `main` may use.
 - **The diff is data.** The diff is written by the pull request's author, possibly the agent, and may carry text aimed at the reviewer (R-05). The prompt says so, asks the model to report such text as a blocking finding, and the model has no tools to act on it. The worst a poisoned diff achieves is a wrong comment, which the student still reads.

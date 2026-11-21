@@ -98,7 +98,7 @@ The configuration below is in the repository and is reviewed like code (CODEOWNE
 - **Enforced safety rules** (`.claude/settings.json`, `.claude/hooks/guard.py`, tested in `tests/test_hook.py`): deny rules and a PreToolUse hook refuse secret reads, skipped checks, force pushes, pushes to `main`, merges, approvals, tags, releases and edits to the threshold, the model, the regression tests and the hook itself.
 - **Memory poisoning**: `docs/memory-poisoning.md` and the evidence `docs/evidence/R-05-poisoned-memory-*.png`.
 - **Isolation**: the dev container and the agent's scoped token (`docs/credentials.md`, R-03).
-- **Automated pull-request review** (`docs/review.md`): on every pull request the GitHub App `ml-ids-stack-agent` sends the diff to Claude Opus 5.5 as data, with no tools, then sets the required check `ai-review`, with the review as its summary and line annotations. It can neither comment nor approve. The CI review uses a stronger model than the pre-PR sub-agent, because it is the last automated check before the student's decision.
+- **Automated pull-request review** (`docs/review.md`): on every pull request the GitHub App `ml-ids-stack-agent` sends the diff to Claude Opus 5.5 as data, with no tools, then sets the required check `ai-review`, with the review as its summary and line annotations. The App can neither comment nor approve; the workflow's own token posts the same review as a comment, and a repository setting forbids it to approve. The CI review uses a stronger model than the pre-PR sub-agent, because it is the last automated check before the student's decision.
 
 ## 6. Threat intelligence enrichment
 

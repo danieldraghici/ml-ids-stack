@@ -1,6 +1,9 @@
 # Automated pull-request review (R-01, R-04, R-05). The GitHub App ml-ids-stack-agent sets the
 # check ai-review, with the review as its summary and line annotations; ruleset main-checks requires
 # it. The App can neither comment nor approve: both need pull-request write, which it does not have.
+# The workflow's own token posts the same review as one comment. It gets pull-request write for
+# that, and the repository setting that stops Actions from approving pull requests keeps it from
+# approving (docs/evidence/R-04-workflow-permissions.png).
 #
 # pull_request_target runs this file and ci/review.py as they are on main, so a branch cannot
 # change the code that holds the secrets. The job never checks out or runs pull-request code:
@@ -9,10 +12,12 @@
 name: review
 on:
   pull_request_target:  # zizmor: ignore[dangerous-triggers] main's file; the branch is read as data, never checked out or run
-    types: [opened, synchronize, reopened, ready_for_review]
+    # edited: the title and description are part of what the model reads, so a new description
+    # gets a new review instead of keeping a verdict on the old one.
+    types: [opened, synchronize, reopened, ready_for_review, edited]
     branches: [main]
 
-# Default token is read-only: it only checks out main (R-03).
+# Default token is read-only; the job widens it only to post the review comment (R-03).
 permissions:
   contents: read
 
@@ -28,6 +33,9 @@ jobs:
     if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     environment: ai-review
+    permissions:
+      contents: read          # checkout of main
+      pull-requests: write    # the review comment; Actions may not approve (repository setting)
     steps:
       # No ref: on pull_request_target this checks out main, never the pull request's branch.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,6 +58,7 @@ jobs:
       - name: Review the diff with Claude
         env:
           APP_TOKEN: ${{ steps.app.outputs.token }}
+          COMMENT_TOKEN: ${{ github.token }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
