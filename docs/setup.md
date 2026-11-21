@@ -172,3 +172,20 @@ How it works: `docs/monitoring.md`. Once, before the next `make up`:
    ```
 
 3. `make up`, then open `https://localhost:8443/grafana/` (user `admin`) and the dashboard "ML-IDS stack health". `make demo-sensor-down` and `make demo-sensor-up` show SensorDown fire and resolve.
+
+## 10. Run it as a reviewer (F7)
+
+A reviewer who clones the repository has no access to the student's age key, lab CA, MISP or Shodan keys. Tools: Docker, `make`, `python3`, `openssl`, the GitHub CLI, and `tcprewrite` (package `tcpreplay`) for the threat-intel demonstration.
+
+```bash
+make reviewer-setup     # .env, new random passwords in .env.secrets, a self-signed 30-day certificate
+make model-release      # the model of the latest release, signature checked with the pinned cosign image
+make up
+make ti-demo-offline    # enrichment with the test dictionary (documentation addresses), no MISP
+```
+
+What each step writes:
+
+- **`make reviewer-setup`:** only what is missing, so a second run changes nothing. The passwords are new for every reviewer and are never committed. `make down` deletes them with the stack.
+- **`make secrets`:** uses them when there is no age key. With the student's key it decrypts SOPS as before.
+- **Browser warning:** the self-signed certificate is not signed by the lab CA, so the browser warns once.
