@@ -5,7 +5,7 @@
 # old when it was adopted.
 #
 # Run from the repository root through the Makefile (make lint-ci, make scan), or:
-#   docker compose -f ci/tools.yaml run --rm -T <tool> <args>
+#   docker compose -f ci/compose.yaml run --rm -T <tool> <args>
 # The repository is mounted read-only at /src; paths in this file are relative to ci/.
 name: ml-ids-stack-tools
 
