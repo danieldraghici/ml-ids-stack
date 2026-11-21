@@ -269,7 +269,8 @@ def stack(tmp_path):
     (tmp_path / "config/opensearch").mkdir(parents=True)
     shutil.copy(ROOT / "config/opensearch/stack-monitor-role.json", tmp_path / "config/opensearch")
     (tmp_path / ".env").write_text("OPENSEARCH_PORT=9200\n")
-    (tmp_path / ".env.secrets").write_text("OPENSEARCH_INITIAL_ADMIN_PASSWORD='ad\"m\\in'\nOPENSEARCH_MONITOR_PASSWORD='mo\"n\\itor'\n")
+    # the format make secrets writes: KEY=value, unquoted; the admin password tries to run a command
+    (tmp_path / ".env.secrets").write_text("OPENSEARCH_INITIAL_ADMIN_PASSWORD=ad\"m\\in$(touch PWNED);x\nOPENSEARCH_MONITOR_PASSWORD=mo\"n\\itor\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     curl = bin_dir / "curl"
@@ -296,11 +297,16 @@ def test_monitor_user_written_with_escaped_passwords_on_stdin(stack):
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == ["PUT roles/stack_monitor: 201", "PUT internalusers/monitor: 201"]
     lines = stdin.splitlines()
-    assert curl_config_value(lines[0]) == 'admin:ad"m\\in'
+    assert curl_config_value(lines[0]) == 'admin:ad"m\\in$(touch PWNED);x'    # passed on as it is
     role = json.loads(curl_config_value(lines[1]))
     assert role["cluster_permissions"] == ["cluster:monitor/health"]
     user = json.loads(curl_config_value(lines[4]))
     assert user == {"password": 'mo"n\\itor', "opendistro_security_roles": ["stack_monitor"]}
+
+
+def test_secrets_are_read_as_data_never_run(stack, tmp_path):
+    stack("200")
+    assert not (tmp_path / "PWNED").exists()
 
 
 def test_monitor_user_fails_when_opensearch_refuses(stack):

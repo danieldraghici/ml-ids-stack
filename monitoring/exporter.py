@@ -38,7 +38,7 @@ OUT_DIR = os.environ.get("OUT_DIR", "/out")
 OPENSEARCH_URL = os.environ.get("OPENSEARCH_URL", "https://opensearch:9200")
 LOGSTASH_URL = os.environ.get("LOGSTASH_URL", "http://logstash:9600")
 PORT = int(os.environ.get("PORT", "9108"))
-TIMEOUT_S = 5
+TIMEOUT_S = 2      # four requests at most per scrape: 8 s, under Prometheus's 10 s scrape timeout
 
 # The file patterns of pipelines/00-input.conf, per pipeline, and the indices they fill.
 SOURCES = {"mlids": ["*.alerts.jsonl", "*.episodes.jsonl"], "suricata": ["*.eve.json"]}

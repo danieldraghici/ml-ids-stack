@@ -14,6 +14,7 @@ alerting:
 
 scrape_configs:
   - job_name: mlids-exporter
+    scrape_timeout: 10s     # the exporter's four requests take 2 s each at most
     static_configs:
       - targets: ["exporter:9108"]
   - job_name: prometheus

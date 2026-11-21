@@ -6,12 +6,12 @@
 # secrets/stack.enc.yaml. Passwords reach curl through its config on stdin, never as arguments.
 set -euo pipefail
 
-set -a
-# shellcheck source=/dev/null
-. ./.env
-# shellcheck source=/dev/null
-. ./.env.secrets
-set +a
+# .env and .env.secrets are read as data, not sourced: a password holding $, ; or a quote is
+# passed on as it is, never expanded or run as a command.
+setting() { sed -n "s/^$1=//p" "$2" | tail -n 1; }
+OPENSEARCH_PORT=$(setting OPENSEARCH_PORT .env)
+OPENSEARCH_INITIAL_ADMIN_PASSWORD=$(setting OPENSEARCH_INITIAL_ADMIN_PASSWORD .env.secrets)
+OPENSEARCH_MONITOR_PASSWORD=$(setting OPENSEARCH_MONITOR_PASSWORD .env.secrets)
 : "${OPENSEARCH_MONITOR_PASSWORD:?add OPENSEARCH_MONITOR_PASSWORD to secrets/stack.enc.yaml (docs/setup.md, section 9)}"
 
 api="https://127.0.0.1:${OPENSEARCH_PORT}/_plugins/_security/api"
@@ -23,7 +23,7 @@ escape() { local s=${1//\\/\\\\}; printf '%s' "${s//\"/\\\"}"; }
 put() {
   local code
   code=$(printf 'user = "admin:%s"\ndata = "%s"\n' "$(escape "$OPENSEARCH_INITIAL_ADMIN_PASSWORD")" "$(escape "$2")" \
-    | curl -sk -K - -o /dev/null -w '%{http_code}' -X PUT -H 'Content-Type: application/json' "$api/$1")
+    | curl -skS -K - -o /dev/null -w '%{http_code}' -X PUT -H 'Content-Type: application/json' "$api/$1")
   echo "PUT $1: $code"
   [[ $code == 200 || $code == 201 ]]
 }
