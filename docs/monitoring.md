@@ -44,7 +44,15 @@ Every alert has a case where it fires and a case where it stays quiet in `monito
 ## Rotating the monitoring passwords
 
 - **Monitor user:** change `OPENSEARCH_MONITOR_PASSWORD` with `sops secrets/stack.enc.yaml`, then `make up`. `scripts/monitor-user.sh` writes the new password on every start, and the exporter is recreated with it.
-- **Grafana admin:** Grafana applies `GRAFANA_ADMIN_PASSWORD` only when it first creates its database in the volume `grafana-data`, so a new value in SOPS alone changes nothing. Run `make down` (it removes the volumes) and then `make up`. Data sources and the dashboard come back from `monitoring/grafana/`; nothing else is kept in that volume.
+- **Grafana admin:** Grafana applies `GRAFANA_ADMIN_PASSWORD` only when it first creates its database in the volume `grafana-data`, so a new value in SOPS alone changes nothing. Remove that one volume, then start the stack again. Data sources and the dashboard come back from `monitoring/grafana/`, and OpenSearch, Prometheus and the other volumes are kept:
+
+  ```bash
+  docker compose --env-file .env --env-file .env.secrets rm --stop --force grafana
+  docker volume rm ml-ids-stack_grafana-data
+  make up
+  ```
+
+  `make down` would do it too, but it removes every volume: the OpenSearch indices, Prometheus's history and Logstash's read positions. `make up` then re-indexes everything in `out/`.
 
 ## Demonstration
 
