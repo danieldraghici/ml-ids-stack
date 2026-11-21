@@ -64,9 +64,10 @@ groups:
 
       # More alert episodes in the last hour than the analyst budget (R-08): one per hour, the
       # budget the threshold is calibrated against (make calibrate). A replay of attack fixtures
-      # fires it too, as attacks also spend the analyst's attention.
+      # fires it too, as attacks also spend the analyst's attention. Counted against the lowest
+      # value in the hour, not a sample exactly an hour back, which a restart or pause would lack.
       - alert: AlertBudgetExceeded
-        expr: (mlids_episodes_written - mlids_episodes_written offset 1h) > 1
+        expr: (mlids_episodes_written - min_over_time(mlids_episodes_written[1h])) > 1
         labels: { severity: warning, risk: R-08 }
         annotations:
           summary: "{{ $value }} alert episodes in the last hour, over the budget of 1 (docs/evidence/R-08-fp-budget.md)."

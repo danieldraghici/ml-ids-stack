@@ -11,7 +11,7 @@
   "timezone": "browser",
   "refresh": "10s",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "editable": false,
   "time": {
     "from": "now-30m",
@@ -499,7 +499,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "mlids_episodes_written - mlids_episodes_written offset 1h",
+          "expr": "mlids_episodes_written - min_over_time(mlids_episodes_written[1h])",
           "legendFormat": "episodes in the last hour"
         }
       ],

@@ -270,6 +270,12 @@ def test_a_stuck_main_loop_stops_the_heartbeat():
     assert not watch.alive(progress=1000, now=1001 + watch.STALL_S)
 
 
+def test_a_failed_heartbeat_is_reported_and_tried_again(tmp_path, capsys):
+    assert watch.beat_or_report(str(tmp_path / "not-mounted"), {}) is False
+    assert "heartbeat not written" in capsys.readouterr().out
+    assert watch.beat_or_report(str(tmp_path), {}) is True and (tmp_path / "heartbeat.json").exists()
+
+
 def test_heartbeat_is_whole_json_with_the_time(tmp_path):
     watch.beat(str(tmp_path), {"processed": 4}, now=1700000000)
     doc = json.loads((tmp_path / "heartbeat.json").read_text())
