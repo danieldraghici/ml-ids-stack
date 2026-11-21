@@ -62,6 +62,15 @@ groups:
         annotations:
           summary: The exposure check of the lab's public address has not run for 8 days.
 
+      # More alert episodes in the last hour than the analyst budget (R-08): one per hour, the
+      # budget the threshold is calibrated against (make calibrate). A replay of attack fixtures
+      # fires it too, as attacks also spend the analyst's attention.
+      - alert: AlertBudgetExceeded
+        expr: (mlids_episodes_written - mlids_episodes_written offset 1h) > 1
+        labels: { severity: warning, risk: R-08 }
+        annotations:
+          summary: "{{ $value }} alert episodes in the last hour, over the budget of 1 (docs/evidence/R-08-fp-budget.md)."
+
       - alert: OpenSearchDown
         expr: opensearch_up == 0 or opensearch_cluster_status == 2
         for: 1m

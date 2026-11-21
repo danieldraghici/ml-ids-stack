@@ -75,6 +75,7 @@ def metrics(samples):
 def test_a_healthy_stack(out):
     (out / "heartbeat.json").write_text(json.dumps({"ts": 1000.5, "processed": 2, "failed": 1}))
     m = metrics(exporter.collect(str(out), opensearch(), lambda p: {}))
+    assert m[("mlids_episodes_written", ())] == 1          # a.episodes.jsonl; a.episodes.json and demo/ are not read
     assert m[("mlids_detector_heartbeat_timestamp_seconds", ())] == 1000.5
     assert m[("mlids_detector_captures_processed", ())] == 2 and m[("mlids_detector_captures_failed", ())] == 1
     assert m[("opensearch_up", ())] == 1 and m[("opensearch_cluster_status", ())] == 1
@@ -282,10 +283,10 @@ def test_every_alert_has_a_promtool_case_and_a_risk():
     rules = [r for g in yaml.safe_load((ROOT / "monitoring/alerts.yml").read_text())["groups"] for r in g["rules"]]
     tested = set(re.findall(r"alertname: (\w+)", (ROOT / "monitoring/alerts.test.yml").read_text()))
     assert {"SensorDown", "PipelineStalled", "OpenSearchDown", "ExporterDown",
-            "IocFeedStale", "ExposureChanged", "ExposureCheckStale"} <= {r["alert"] for r in rules}
+            "IocFeedStale", "ExposureChanged", "ExposureCheckStale", "AlertBudgetExceeded"} <= {r["alert"] for r in rules}
     for rule in rules:
         assert rule["alert"] in tested, f"{rule['alert']} has no promtool test"
-        assert rule["labels"]["risk"] in ("R-06", "R-10")
+        assert rule["labels"]["risk"] in ("R-06", "R-08", "R-10")
 
 
 def test_the_detector_service_keeps_the_replay_hardening():

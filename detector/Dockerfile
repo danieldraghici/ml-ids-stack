@@ -15,7 +15,7 @@ COPY requirements.txt .
 RUN pip install --only-binary=:all: --require-hashes -r requirements.txt \
  && pip uninstall --yes pip
 
-COPY thresholds.json run.py episodes.py watch.py ./
+COPY thresholds.json run.py episodes.py watch.py calibrate.py ./
 COPY src/ src/
 
 # Runs as an unprivileged user; at run time the container is also read-only, without network

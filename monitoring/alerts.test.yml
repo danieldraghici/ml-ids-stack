@@ -200,3 +200,19 @@ tests:
           - exp_labels: { severity: warning, risk: R-10 }
             exp_annotations:
               summary: The exposure check of the lab's public address has not run for 8 days.
+
+  # Episodes written: 10 before, then 1 in an hour (within budget), then 3 more (over).
+  - interval: 5m
+    input_series:
+      - series: mlids_episodes_written
+        values: "10x12 11x12 14x12"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: AlertBudgetExceeded
+        exp_alerts: []
+      - eval_time: 2h30m
+        alertname: AlertBudgetExceeded
+        exp_alerts:
+          - exp_labels: { severity: warning, risk: R-08 }
+            exp_annotations:
+              summary: "3 alert episodes in the last hour, over the budget of 1 (docs/evidence/R-08-fp-budget.md)."

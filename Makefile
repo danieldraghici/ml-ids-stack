@@ -2,7 +2,7 @@
 # secrets/stack.enc.yaml through .env.secrets (owner-only, deleted by make down, R-02).
 .PHONY: lint lint-ci test review secrets pki up down single-node health dashboards tls model model-check model-release \
         detector frontdoor logstash images scan scan-upstream sbom replay suricata fixtures-synthetic gate \
-        misp-setup misp-up misp-down misp-pull exposure ti-demo geoip demo-sensor-down demo-sensor-up schedule unschedule
+        misp-setup misp-up misp-down misp-pull exposure ti-demo geoip demo-sensor-down demo-sensor-up schedule unschedule calibrate
 
 # Where the dissertation's model bundle lives on this machine (never committed, R-07).
 MODEL_SRC ?= /mnt/d/ML_IDS_Disertation/ML_IDS_Disertation/models/nfv3_window_xgb_latest.joblib
@@ -294,3 +294,17 @@ schedule:
 unschedule:
 	@current="$$(crontab -l 2>/dev/null | grep -vF '# $(CRON_TAG)')"; \
 	{ [ -z "$$current" ] || printf '%s\n' "$$current"; } | crontab -
+
+# R-08: site calibration of the threshold on a local benign capture, with the attack fixtures of
+# the gate, in the hardened detector container (no network, read-only, model verified). The
+# capture's folder is mounted read-only and never copied; out/calibration.json and the table hold
+# counts and rates only. thresholds.json is not changed (docs/evidence/R-08-fp-budget.md).
+CAPTURE ?=
+BUDGET ?= 1
+calibrate: detector
+	@test -f "$(CAPTURE)" || { echo "usage: make calibrate CAPTURE=/mnt/d/.../benign.pcapng [BUDGET=1]"; exit 1; }
+	@mkdir -p out
+	$(HARDENED) -v "$$PWD/models:/models:ro" -v "$(abspath $(dir $(CAPTURE))):/capture:ro" \
+	  -v "$$PWD/tests/fixtures/pcaps:/pcaps:ro" -v "$$PWD/out:/out" --entrypoint python ml-ids-stack/detector:local \
+	  /app/calibrate.py --benign "/capture/$(notdir $(CAPTURE))" --budget $(BUDGET) \
+	  --attacks /pcaps/portscan.pcap /pcaps/slowloris.pcap /pcaps/hulk1_head.pcap
