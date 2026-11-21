@@ -41,6 +41,11 @@ A source that does not answer gets 0 in its `_up` metric and its other metrics a
 
 Every alert has a case where it fires and a case where it stays quiet in `monitoring/alerts.test.yml`. `make lint-ci`, and so the required check `lint`, runs `promtool test rules` on them, with `promtool check config` and `amtool check-config`. A changed threshold that breaks a case fails the pull request, like a changed detection rule.
 
+## Rotating the monitoring passwords
+
+- **Monitor user:** change `OPENSEARCH_MONITOR_PASSWORD` with `sops secrets/stack.enc.yaml`, then `make up`. `scripts/monitor-user.sh` writes the new password on every start, and the exporter is recreated with it.
+- **Grafana admin:** Grafana applies `GRAFANA_ADMIN_PASSWORD` only when it first creates its database in the volume `grafana-data`, so a new value in SOPS alone changes nothing. Run `make down` (it removes the volumes) and then `make up`. Data sources and the dashboard come back from `monitoring/grafana/`; nothing else is kept in that volume.
+
 ## Demonstration
 
 ```bash
