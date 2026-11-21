@@ -1,5 +1,6 @@
-# Automated pull-request review (R-01, R-04, R-05). The GitHub App ml-ids-stack-agent posts one
-# comment and sets the check ai-review, which ruleset main-checks requires. It cannot approve.
+# Automated pull-request review (R-01, R-04, R-05). The GitHub App ml-ids-stack-agent sets the
+# check ai-review, with the review as its summary and line annotations; ruleset main-checks requires
+# it. The App can neither comment nor approve: both need pull-request write, which it does not have.
 #
 # pull_request_target runs this file and ci/review.py as they are on main, so a branch cannot
 # change the code that holds the secrets. The job never checks out or runs pull-request code:
@@ -44,7 +45,6 @@ jobs:
           client-id: ${{ vars.REVIEW_APP_CLIENT_ID }}
           private-key: ${{ secrets.REVIEW_APP_KEY }}
           permission-checks: write
-          permission-issues: write
           permission-pull-requests: read
           permission-contents: read
       - name: Review the diff with Claude

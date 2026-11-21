@@ -241,15 +241,15 @@ def test_a_blocking_finding_fails_the_check_and_notes_alone_do_not():
     assert review.title([]) == "No findings"
 
 
-def test_the_comment_puts_blocking_first_and_states_it_cannot_approve():
+def test_the_review_puts_blocking_first_and_states_it_cannot_approve():
     verdict = {"summary": "Two\nlines.", "findings": [NOTE, BLOCKING]}
     meta = {"model": "claude-opus-5-5", "fallback": False, "input": 10_000, "output": 2_000}
-    body = review.comment_body("0123456789abcdef", verdict, meta, ["x.png (binary)"])
+    body = review.review_body("0123456789abcdef", verdict, meta, ["x.png (binary)"])
     lines = body.splitlines()
-    assert lines[0] == review.MARKER and lines[1] == "### ai-review of 0123456: 1 blocking, 1 note"
-    assert lines[3] == "Two lines."
-    assert lines[5] == "- **blocking** `ci/a.sh:4`, R-02 secret: key in 'code'"
-    assert lines[6] == "- **note** `README.md`, docs: unit missing"
+    assert lines[0] == "### ai-review of 0123456: 1 blocking, 1 note"
+    assert lines[2] == "Two lines."
+    assert lines[4] == "- **blocking** `ci/a.sh:4`, R-02 secret: key in 'code'"
+    assert lines[5] == "- **note** `README.md`, docs: unit missing"
     assert "- x.png (binary)" in lines
     assert "about $0.08" in body and "It cannot approve" in body      # 10k x $4 + 2k x $20 per million
 
@@ -258,6 +258,13 @@ def test_no_price_is_claimed_for_a_fallback_or_an_unknown_model():
     meta = {"model": "claude-opus-4-8", "fallback": True, "input": 1, "output": 1}
     assert "$" not in review.cost_line(meta) and "fallback after a decline" in review.cost_line(meta)
     assert review.cost_line(None) == "No model call."
+
+
+def test_the_reviewer_never_comments_or_reviews_a_pull_request():
+    # Both need pull-request write; the review lives in the check run instead (R-01).
+    source = (ROOT / "ci" / "review.py").read_text()
+    assert "/comments" not in source and "/reviews" not in source
+    assert '"POST", f"/repos/{repo}/check-runs"' in source
 
 
 def test_annotations_only_for_reviewed_paths_and_real_lines():
@@ -293,7 +300,7 @@ def workflow_problems(wf: dict) -> list[str]:
                 problems.append(f"expression inside run: {step['run']}")
             if uses.startswith("actions/create-github-app-token@"):
                 writes = {k for k, v in with_.items() if k.startswith("permission-") and v == "write"}
-                if writes != {"permission-checks", "permission-issues"}:
+                if writes != {"permission-checks"}:
                     problems.append(f"App token writes {sorted(writes)}")
     return problems
 

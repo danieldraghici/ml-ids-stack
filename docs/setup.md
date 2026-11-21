@@ -134,7 +134,7 @@ python3 -m venv ~/.venvs/intel && ~/.venvs/intel/bin/pip install --require-hashe
 
 How it works and why: `docs/review.md`. The student does these steps once, with their own `gh` login in WSL; the agent's token has no administration rights.
 
-1. **App permissions.** GitHub, Settings, Developer settings, GitHub Apps, `ml-ids-stack-agent`, Permissions & events. Repository permissions: Checks and Issues: Read and write; Contents and Pull requests: Read-only; Metadata: Read-only; everything else: No access. Then accept the new permissions on the installation (Settings, Applications, Installed GitHub Apps, `ml-ids-stack-agent`).
+1. **App permissions.** GitHub, Settings, Developer settings, GitHub Apps, `ml-ids-stack-agent`, Permissions & events. Repository permissions: Checks: Read and write; Contents and Pull requests: Read-only; Metadata: Read-only; everything else: No access. Then accept the new permissions on the installation (Settings, Applications, Installed GitHub Apps, `ml-ids-stack-agent`).
 2. **Environment `ai-review`**, usable from `main` only, with the App key, the Claude API key (from a Claude Console workspace with a monthly spend limit) and the App's Client ID (App settings page, General):
 
    ```bash
